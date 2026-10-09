@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pencatatan Keuangan Pribadi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <svg
+          class="brand-icon"
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M3 10h18M8 15h4" />
+        </svg>
+        <div class="brand-text">
+          <h1>Keuangan Pribadi</h1>
+          <p>Pencatatan pemasukan &amp; pengeluaran</p>
+        </div>
+      </div>
+      <p class="period-label" id="periodLabel">Bulan berjalan</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ====== SUMMARY ====== -->
+    <section class="summary" aria-label="Ringkasan keuangan">
+      <article class="metric">
+        <p class="metric-label">Total Saldo</p>
+        <p class="metric-value" id="totalBalance" data-state="neutral">Rp 0</p>
+        <p class="metric-sub" id="totalBalanceSub">Saldo akumulatif semua transaksi</p>
+      </article>
+      <article class="metric">
+        <p class="metric-label">Total Pemasukan</p>
+        <p class="metric-value income" id="totalIncome">Rp 0</p>
+        <p class="metric-sub" id="totalIncomeSub">Bulan ini</p>
+      </article>
+      <article class="metric">
+        <p class="metric-label">Total Pengeluaran</p>
+        <p class="metric-value expense" id="totalExpense">Rp 0</p>
+        <p class="metric-sub" id="totalExpenseSub">Bulan ini</p>
+      </article>
+    </section>
+
+    <!-- ====== FORM ====== -->
+    <section class="panel form-panel" aria-label="Input transaksi">
+      <div class="panel-head">
+        <h2>Input Transaksi</h2>
+        <p>Isi data lalu simpan untuk mencatat ke database.</p>
+      </div>
+
+      <form id="transactionForm" novalidate>
+        <fieldset class="field type-field">
+          <legend class="field-label">Jenis Transaksi</legend>
+          <div class="radio-row">
+            <label class="radio-pill">
+              <input type="radio" name="type" value="income" />
+              <span>Pemasukan</span>
+            </label>
+            <label class="radio-pill">
+              <input type="radio" name="type" value="expense" checked />
+              <span>Pengeluaran</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="field">
+          <label class="field-label" for="amount">Nominal (Rp)</label>
+          <input type="number" id="amount" name="amount" min="1" step="1" placeholder="0" required />
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="category">Kategori</label>
+          <select id="category" name="category" required>
+            <option value="">Pilih kategori</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="transactionDate">Tanggal</label>
+          <input type="date" id="transactionDate" name="transactionDate" required />
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="description">Keterangan (opsional)</label>
+          <input type="text" id="description" name="description" placeholder="Catatan singkat" maxlength="120" />
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="submitButton">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Simpan Transaksi
+          </button>
+          <button type="reset" class="btn-ghost" id="resetButton">Bersihkan</button>
+        </div>
+        <p class="form-message" id="formMessage" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <!-- ====== TABLE ====== -->
+    <section class="panel table-panel" aria-label="Riwayat transaksi">
+      <div class="panel-head">
+        <div>
+          <h2>Riwayat Transaksi</h2>
+          <p>Diurutkan dari tanggal terbaru.</p>
+        </div>
+        <p class="table-count" id="tableCount">0 catatan</p>
+      </div>
+
+      <div class="table-wrap">
+        <table id="transactionsTable">
+          <thead>
+            <tr>
+              <th scope="col" class="col-date">Tanggal</th>
+              <th scope="col" class="col-desc">Keterangan</th>
+              <th scope="col" class="col-cat">Kategori</th>
+              <th scope="col" class="col-type">Jenis</th>
+              <th scope="col" class="col-amount">Nominal</th>
+              <th scope="col" class="col-action">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="transactionsBody"></tbody>
+        </table>
+
+        <div class="table-state" id="tableState" hidden>
+          <div class="state-inner">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="26"
+              height="26"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <path d="M3 10h18M8 15h4" />
+            </svg>
+            <p class="state-title" id="stateTitle">Belum ada transaksi</p>
+            <p class="state-sub" id="stateSub">Tambahkan transaksi pertama Anda menggunakan form di samping.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Supabase Connected</p>
+  </footer>
+
+  <!-- Supabase JS Client (v2) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
