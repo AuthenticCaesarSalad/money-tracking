@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Masuk - Keuangan Pribadi</title>
+  <link
+    rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2309090B' stroke-width='1.75' stroke-linecap='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 15h4'/%3E%3C/svg%3E"
+  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css?v=5" />
+</head>
+<body class="login-page">
+  <div class="login-wrap">
+    <section class="panel login-panel" aria-label="Formulir masuk">
+      <div class="login-head">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="26"
+          height="26"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M3 10h18M8 15h4" />
+        </svg>
+        <h1>Keuangan Pribadi</h1>
+        <p class="login-subtitle">Masuk untuk melihat catatan keuangan Anda</p>
+      </div>
+
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label class="field-label" for="loginUsername">Nama Pengguna</label>
+          <input type="text" id="loginUsername" name="username" autocomplete="username" required />
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="loginPassword">Kata Sandi</label>
+          <input type="password" id="loginPassword" name="password" autocomplete="current-password" required />
+        </div>
+
+        <button type="submit" class="btn-primary" id="loginButton">Masuk</button>
+
+        <p class="form-message" id="loginMessage" role="status" aria-live="polite"></p>
+      </form>
+
+      <p class="login-hint">Pengguna baru ditambahkan melalui dashboard Supabase.</p>
+    </section>
+  </div>
+
+  <!-- Supabase JS Client (v2) dengan cadangan CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // Jika CDN utama diblokir/gagal, muat dari unpkg
+    if (!window.supabase) {
+      var fallback = document.createElement("script");
+      fallback.src = "https://unpkg.com/@supabase/supabase-js@2";
+      document.head.appendChild(fallback);
+    }
+  </script>
+  <script src="auth.js?v=5" defer></script>
+</body>
+</html>

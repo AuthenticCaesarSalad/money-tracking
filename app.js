@@ -3,16 +3,9 @@
    Backend: Supabase (@supabase/supabase-js via CDN)
    ========================================================= */
 
-/*
- * KONFIGURASI SUPABASE
- * Ganti kedua nilai di bawah dengan kredensial proyek Anda.
- * Project Settings > API di dashboard Supabase.
- */
-const SUPABASE_URL = "https://pfhbijsqekteeyavbvnj.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmaGJpanNxZWt0ZWV5YXZidm5qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjEyMzEsImV4cCI6MjEwNzA5NzIzMX0.tl3vJ0Bdcg5HXzcjSgnX2BGdrKiVqAIomv-XCUbDgcg";
-
-/* Nama tabel di database Supabase */
-const TABLE_NAME = "transactions";
+/* Konfigurasi Supabase (SUPABASE_URL, SUPABASE_ANON_KEY, TABLE_NAME)
+   dan pembuatan klien sudah dipindahkan ke auth.js, yang harus dimuat
+   sebelum app.js. */
 
 /* Opsi kategori per jenis transaksi */
 const CATEGORIES = {
@@ -39,37 +32,6 @@ const monthFormatter = new Intl.DateTimeFormat("id-ID", {
   month: "long",
   year: "numeric",
 });
-
-/* =========================================================
-   Inisialisasi client Supabase
-   ========================================================= */
-let supabaseClient = null;
-
-function initSupabase() {
-  if (!window.supabase || !window.supabase.createClient) {
-    showFatalError(
-      "Klien Supabase gagal dimuat",
-      "Periksa koneksi internet Anda lalu muat ulang halaman ini."
-    );
-    return false;
-  }
-
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    showFatalError(
-      "Kredensial Supabase belum dikonfigurasi",
-      "Isi SUPABASE_URL dan SUPABASE_ANON_KEY pada bagian atas file app.js."
-    );
-    return false;
-  }
-
-  try {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    return true;
-  } catch (error) {
-    showFatalError("Gagal menginisialisasi Supabase", error.message);
-    return false;
-  }
-}
 
 /* =========================================================
    Referensi DOM
@@ -101,6 +63,10 @@ const el = {
 /* State lokal untuk flag proses */
 let isSubmitting = false;
 let deletingIds = new Set();
+
+/* Pengguna yang sedang login (diisi dari auth.js saat boot) */
+let currentUserId = null;
+let currentUsername = null;
 
 /* =========================================================
    Util
@@ -238,6 +204,7 @@ async function fetchTransactions() {
   const { data, error } = await supabaseClient
     .from(TABLE_NAME)
     .select("id, type, amount, category, description, transaction_date, created_at")
+    .eq("user_id", currentUserId)
     .order("transaction_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -363,6 +330,7 @@ async function addTransaction(event) {
   setFormMessage("Menyimpan transaksi...", null);
 
   const payload = {
+    user_id: currentUserId,
     type,
     amount: Math.round(amount),
     category,
@@ -406,7 +374,11 @@ async function deleteTransaction(id) {
   const btn = el.tableBody.querySelector(`button[data-delete="${id}"]`);
   if (btn) btn.disabled = true;
 
-  const { error } = await supabaseClient.from(TABLE_NAME).delete().eq("id", id);
+  const { error } = await supabaseClient
+    .from(TABLE_NAME)
+    .delete()
+    .eq("id", id)
+    .eq("user_id", currentUserId);
 
   deletingIds.delete(id);
 
@@ -486,14 +458,28 @@ function bindEvents() {
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
+    const session = requireSession();
+    if (!session) return; // sudah diredirect ke login.html
+
+    currentUserId = session.userId;
+    currentUsername = session.username;
+
+    const badge = document.getElementById("userBadge");
+    if (badge) badge.textContent = currentUsername;
+
+    if (!supabaseClient) {
+      displayRuntimeError(
+        "Klien Supabase belum siap. Periksa konfigurasi di auth.js lalu muat ulang halaman."
+      );
+      return;
+    }
+
     el.transactionDate.value = todayISO();
     el.periodLabel.textContent = currentMonthLabel();
     syncCategoryOptions();
     bindEvents();
 
-    if (initSupabase()) {
-      fetchTransactions();
-    }
+    fetchTransactions();
   } catch (error) {
     console.error("Gagal saat inisialisasi aplikasi:", error);
     displayRuntimeError(

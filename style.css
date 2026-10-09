@@ -274,6 +274,7 @@ form {
 }
 
 input[type="text"],
+input[type="password"],
 input[type="number"],
 input[type="date"],
 select {
@@ -745,5 +746,125 @@ td.cell-action {
   .btn-primary,
   .btn-ghost {
     width: 100%;
+  }
+}
+
+/* ====== Login page ====== */
+.login-page {
+  background-color: var(--color-bg);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+}
+
+.login-panel {
+  width: 100%;
+  max-width: 380px;
+}
+
+.login-wrap {
+  width: 100%;
+  max-width: 380px;
+}
+
+.login-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.login-head svg {
+  color: var(--color-text);
+}
+
+.login-head h1 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.login-head p {
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+}
+
+.login-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.login-panel .btn-primary {
+  width: 100%;
+}
+
+.login-hint {
+  margin-top: var(--space-4);
+  font-size: 11.5px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+  padding-top: var(--space-4);
+  border-top: var(--border-base);
+}
+
+/* ====== Header user controls ====== */
+.user-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.user-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  border: var(--border-base);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.btn-logout {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+}
+
+.btn-logout:hover {
+  opacity: 0.75;
+  color: var(--color-text);
+}
+
+.btn-logout:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* ====== Login & header small-screen tweaks ====== */
+@media (max-width: 520px) {
+  .login-panel {
+    max-width: none;
+  }
+
+  .login-head h1 {
+    font-size: 16px;
+  }
+
+  .user-controls {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
