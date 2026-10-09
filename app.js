@@ -57,8 +57,8 @@ function initSupabase() {
   if (
     !SUPABASE_URL ||
     !SUPABASE_ANON_KEY ||
-    SUPABASE_URL.startsWith("https://your-project-ref") ||
-    SUPABASE_ANON_KEY.startsWith("your-anon-public-key")
+    SUPABASE_URL.startsWith("https://xnuyjoszpmquxuileuqm.supabase.co") ||
+    SUPABASE_ANON_KEY.startsWith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhudXlqb3N6cG1xdXh1aWxldXFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MDY4MjQsImV4cCI6MjEwNzA4MjgyNH0.CZohTfsvhqVlkol1_RZvpQPh8onbMAIGflXeTeN3zMg")
   ) {
     showFatalError(
       "Kredensial Supabase belum dikonfigurasi",
