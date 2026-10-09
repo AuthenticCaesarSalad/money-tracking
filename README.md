@@ -108,16 +108,20 @@ penyebabnya:
    client di `app.js` pernah dinamai `supabase`, yang bentrok dengan global
    `window.supabase` dari CDN. Sudah diganti menjadi `supabaseClient` —
    pastikan file yang di-deploy adalah versi terbaru.
-3. Tab **Network** > muat ulang halaman > cek baris `app.js`:
+3. Jika muncul "Kredensial Supabase belum dikonfigurasi" padahal kredensial
+   sudah diisi: kemungkinan versi lama `app.js` masih ter-cache, atau teks
+   guard anti-placeholder ikut terganti saat find-and-replace. Guard tersebut
+   sudah dihapus — deploy ulang `app.js` versi terbaru dan hard-reload.
+4. Tab **Network** > muat ulang halaman > cek baris `app.js`:
    - Status **404**: file belum ter-upload atau salah folder di server.
    - Kolom **Type** bukan `javascript`/`text/javascript`: hosting menyajikan
      file dengan MIME type salah. Tambahkan MIME type untuk `.js` di panel
      hosting (IIS: `application/javascript`), atau hubungi provider.
-4. Matikan ekstensi pemblokir iklan/script lalu coba lagi.
-5. Jika menggunakan Cloudflare, buat *Page Rule* "Bypass Cache" untuk domain
+5. Matikan ekstensi pemblokir iklan/script lalu coba lagi.
+6. Jika menggunakan Cloudflare, buat *Page Rule* "Bypass Cache" untuk domain
    agar `app.js` selalu diambil dari server.
 
-Catatan: tag script memakai `?v=3` sebagai cache-buster. Naikkan angkanya
+Catatan: tag script memakai `?v=4` sebagai cache-buster. Naikkan angkanya
 setiap kali meng-update file agar browser tidak memakai versi lama.
 
 ### Tabel menampilkan "Gagal memuat data"

@@ -54,12 +54,7 @@ function initSupabase() {
     return false;
   }
 
-  if (
-    !SUPABASE_URL ||
-    !SUPABASE_ANON_KEY ||
-    SUPABASE_URL.startsWith("https://pfhbijsqekteeyavbvnj.supabase.co") ||
-    SUPABASE_ANON_KEY.startsWith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmaGJpanNxZWt0ZWV5YXZidm5qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjEyMzEsImV4cCI6MjEwNzA5NzIzMX0.tl3vJ0Bdcg5HXzcjSgnX2BGdrKiVqAIomv-XCUbDgcg")
-  ) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     showFatalError(
       "Kredensial Supabase belum dikonfigurasi",
       "Isi SUPABASE_URL dan SUPABASE_ANON_KEY pada bagian atas file app.js."
