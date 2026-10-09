@@ -96,6 +96,26 @@ nonaktifkan RLS sepenuhnya (tidak direkomendasikan untuk produksi).
 alter table public.transactions disable row level security;
 ```
 
+### Dropdown Kategori kosong / form tidak bereaksi
+
+Artinya `app.js` tidak dieksekusi browser (bukan masalah database). Sekarang
+select kategori sudah berisi opsi statis sebagai cadangan, dan setiap error
+JavaScript akan langsung tampil di kotak merah di bawah form. Untuk mencari
+penyebabnya:
+
+1. Tekan **F12** di browser > tab **Console**. Baca pesan merah yang muncul.
+2. Tab **Network** > muat ulang halaman > cek baris `app.js`:
+   - Status **404**: file belum ter-upload atau salah folder di server.
+   - Kolom **Type** bukan `javascript`/`text/javascript`: hosting menyajikan
+     file dengan MIME type salah. Tambahkan MIME type untuk `.js` di panel
+     hosting (IIS: `application/javascript`), atau hubungi provider.
+3. Matikan ekstensi pemblokir iklan/script lalu coba lagi.
+4. Jika menggunakan Cloudflare, buat *Page Rule* "Bypass Cache" untuk domain
+   agar `app.js` selalu diambil dari server.
+
+Catatan: tag script memakai `?v=2` sebagai cache-buster. Naikkan angkanya
+setiap kali meng-update file agar browser tidak memakai versi lama.
+
 ### Tabel menampilkan "Gagal memuat data"
 
 - Cek apakah `SUPABASE_URL` dan `SUPABASE_ANON_KEY` sudah benar di `app.js`.

@@ -142,7 +142,8 @@ function currentMonthLabel() {
    Kategori dinamis
    ========================================================= */
 function syncCategoryOptions() {
-  const selectedType = document.querySelector('input[name="type"]:checked').value;
+  const checked = document.querySelector('input[name="type"]:checked');
+  const selectedType = checked ? checked.value : "expense";
   const previous = el.category.value;
   const options = CATEGORIES[selectedType] || CATEGORIES.expense;
 
@@ -489,12 +490,43 @@ function bindEvents() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  el.transactionDate.value = todayISO();
-  el.periodLabel.textContent = currentMonthLabel();
-  syncCategoryOptions();
-  bindEvents();
+  try {
+    el.transactionDate.value = todayISO();
+    el.periodLabel.textContent = currentMonthLabel();
+    syncCategoryOptions();
+    bindEvents();
 
-  if (initSupabase()) {
-    fetchTransactions();
+    if (initSupabase()) {
+      fetchTransactions();
+    }
+  } catch (error) {
+    console.error("Gagal saat inisialisasi aplikasi:", error);
+    displayRuntimeError(
+      `Aplikasi gagal dimulai: ${error && error.message ? error.message : error}. ` +
+        "Buka DevTools (F12) > Console untuk detail."
+    );
   }
+});
+
+/* =========================================================
+   Pelapor error runtime - tampilkan di layar, bukan hanya console
+   ========================================================= */
+function displayRuntimeError(message) {
+  console.error("Runtime:", message);
+  try {
+    el.formMessage.textContent = message;
+    el.formMessage.classList.remove("success");
+    el.formMessage.classList.add("error");
+  } catch (e) {
+    /* elemen belum siap; abaikan */
+  }
+}
+
+window.addEventListener("error", (event) => {
+  displayRuntimeError(`Kesalahan JavaScript: ${event.message || "tidak diketahui"}`);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason && event.reason.message ? event.reason.message : event.reason;
+  displayRuntimeError(`Kesalahan asinkron: ${reason}`);
 });

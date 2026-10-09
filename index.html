@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
   <header class="site-header">
@@ -92,6 +92,11 @@
           <label class="field-label" for="category">Kategori</label>
           <select id="category" name="category" required>
             <option value="">Pilih kategori</option>
+            <option value="Makanan">Makanan</option>
+            <option value="Transportasi">Transportasi</option>
+            <option value="Tagihan">Tagihan</option>
+            <option value="Gaji">Gaji</option>
+            <option value="Lainnya">Lainnya</option>
           </select>
         </div>
 
@@ -183,8 +188,16 @@
     <p>Supabase Connected</p>
   </footer>
 
-  <!-- Supabase JS Client (v2) -->
+  <!-- Supabase JS Client (v2) dengan cadangan CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js" defer></script>
+  <script>
+    // Jika CDN utama diblokir/gagal, muat dari unpkg
+    if (!window.supabase) {
+      var fallback = document.createElement("script");
+      fallback.src = "https://unpkg.com/@supabase/supabase-js@2";
+      document.head.appendChild(fallback);
+    }
+  </script>
+  <script src="app.js?v=2" defer></script>
 </body>
 </html>
