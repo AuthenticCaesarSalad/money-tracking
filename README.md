@@ -104,16 +104,20 @@ JavaScript akan langsung tampil di kotak merah di bawah form. Untuk mencari
 penyebabnya:
 
 1. Tekan **F12** di browser > tab **Console**. Baca pesan merah yang muncul.
-2. Tab **Network** > muat ulang halaman > cek baris `app.js`:
+2. Jika muncul `Identifier 'supabase' has already been declared`: variabel
+   client di `app.js` pernah dinamai `supabase`, yang bentrok dengan global
+   `window.supabase` dari CDN. Sudah diganti menjadi `supabaseClient` —
+   pastikan file yang di-deploy adalah versi terbaru.
+3. Tab **Network** > muat ulang halaman > cek baris `app.js`:
    - Status **404**: file belum ter-upload atau salah folder di server.
    - Kolom **Type** bukan `javascript`/`text/javascript`: hosting menyajikan
      file dengan MIME type salah. Tambahkan MIME type untuk `.js` di panel
      hosting (IIS: `application/javascript`), atau hubungi provider.
-3. Matikan ekstensi pemblokir iklan/script lalu coba lagi.
-4. Jika menggunakan Cloudflare, buat *Page Rule* "Bypass Cache" untuk domain
+4. Matikan ekstensi pemblokir iklan/script lalu coba lagi.
+5. Jika menggunakan Cloudflare, buat *Page Rule* "Bypass Cache" untuk domain
    agar `app.js` selalu diambil dari server.
 
-Catatan: tag script memakai `?v=2` sebagai cache-buster. Naikkan angkanya
+Catatan: tag script memakai `?v=3` sebagai cache-buster. Naikkan angkanya
 setiap kali meng-update file agar browser tidak memakai versi lama.
 
 ### Tabel menampilkan "Gagal memuat data"

@@ -8,8 +8,8 @@
  * Ganti kedua nilai di bawah dengan kredensial proyek Anda.
  * Project Settings > API di dashboard Supabase.
  */
-const SUPABASE_URL = "https://xnuyjoszpmquxuileuqm.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhudXlqb3N6cG1xdXh1aWxldXFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MDY4MjQsImV4cCI6MjEwNzA4MjgyNH0.CZohTfsvhqVlkol1_RZvpQPh8onbMAIGflXeTeN3zMg";
+const SUPABASE_URL = "https://pfhbijsqekteeyavbvnj.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmaGJpanNxZWt0ZWV5YXZidm5qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjEyMzEsImV4cCI6MjEwNzA5NzIzMX0.tl3vJ0Bdcg5HXzcjSgnX2BGdrKiVqAIomv-XCUbDgcg";
 
 /* Nama tabel di database Supabase */
 const TABLE_NAME = "transactions";
@@ -43,7 +43,7 @@ const monthFormatter = new Intl.DateTimeFormat("id-ID", {
 /* =========================================================
    Inisialisasi client Supabase
    ========================================================= */
-let supabase = null;
+let supabaseClient = null;
 
 function initSupabase() {
   if (!window.supabase || !window.supabase.createClient) {
@@ -57,8 +57,8 @@ function initSupabase() {
   if (
     !SUPABASE_URL ||
     !SUPABASE_ANON_KEY ||
-    SUPABASE_URL.startsWith("https://xnuyjoszpmquxuileuqm.supabase.co") ||
-    SUPABASE_ANON_KEY.startsWith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhudXlqb3N6cG1xdXh1aWxldXFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MDY4MjQsImV4cCI6MjEwNzA4MjgyNH0.CZohTfsvhqVlkol1_RZvpQPh8onbMAIGflXeTeN3zMg")
+    SUPABASE_URL.startsWith("https://pfhbijsqekteeyavbvnj.supabase.co") ||
+    SUPABASE_ANON_KEY.startsWith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmaGJpanNxZWt0ZWV5YXZidm5qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjEyMzEsImV4cCI6MjEwNzA5NzIzMX0.tl3vJ0Bdcg5HXzcjSgnX2BGdrKiVqAIomv-XCUbDgcg")
   ) {
     showFatalError(
       "Kredensial Supabase belum dikonfigurasi",
@@ -68,7 +68,7 @@ function initSupabase() {
   }
 
   try {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     return true;
   } catch (error) {
     showFatalError("Gagal menginisialisasi Supabase", error.message);
@@ -240,7 +240,7 @@ function updateSummary(transactions) {
 async function fetchTransactions() {
   renderSkeleton();
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from(TABLE_NAME)
     .select("id, type, amount, category, description, transaction_date, created_at")
     .order("transaction_date", { ascending: false })
@@ -376,7 +376,7 @@ async function addTransaction(event) {
   };
 
   try {
-    const { data, error } = await supabase.from(TABLE_NAME).insert(payload).select().single();
+    const { data, error } = await supabaseClient.from(TABLE_NAME).insert(payload).select().single();
 
     if (error) throw error;
 
@@ -411,7 +411,7 @@ async function deleteTransaction(id) {
   const btn = el.tableBody.querySelector(`button[data-delete="${id}"]`);
   if (btn) btn.disabled = true;
 
-  const { error } = await supabase.from(TABLE_NAME).delete().eq("id", id);
+  const { error } = await supabaseClient.from(TABLE_NAME).delete().eq("id", id);
 
   deletingIds.delete(id);
 
