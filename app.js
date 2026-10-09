@@ -8,8 +8,8 @@
  * Ganti kedua nilai di bawah dengan kredensial proyek Anda.
  * Project Settings > API di dashboard Supabase.
  */
-const SUPABASE_URL = "https://your-project-ref.supabase.co";
-const SUPABASE_ANON_KEY = "your-anon-public-key";
+const SUPABASE_URL = "https://xnuyjoszpmquxuileuqm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhudXlqb3N6cG1xdXh1aWxldXFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MDY4MjQsImV4cCI6MjEwNzA4MjgyNH0.CZohTfsvhqVlkol1_RZvpQPh8onbMAIGflXeTeN3zMg";
 
 /* Nama tabel di database Supabase */
 const TABLE_NAME = "transactions";
