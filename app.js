@@ -68,12 +68,22 @@ let deletingIds = new Set();
 let currentUserId = null;
 let currentUsername = null;
 
+/* Privasi nominal: sembunyikan angka uang (sensor) */
+const VISIBILITY_KEY = "keuangan_hide_amounts";
+const AMOUNT_MASK = "*****";
+let amountsHidden = false;
+let lastRendered = [];
+
 /* =========================================================
    Util
    ========================================================= */
 function formatRupiah(value) {
   const number = Number(value) || 0;
   return rupiahFormatter.format(number);
+}
+
+function formatRupiahMasked(value) {
+  return amountsHidden ? `Rp ${AMOUNT_MASK}` : formatRupiah(value);
 }
 
 function formatAmount(value, type) {
@@ -187,9 +197,9 @@ function updateSummary(transactions) {
 
   const balance = totalIncome - totalExpense;
 
-  el.totalIncome.textContent = formatRupiah(totalIncome);
-  el.totalExpense.textContent = formatRupiah(totalExpense);
-  el.totalBalance.textContent = formatRupiah(balance);
+  el.totalIncome.textContent = formatRupiahMasked(totalIncome);
+  el.totalExpense.textContent = formatRupiahMasked(totalExpense);
+  el.totalBalance.textContent = formatRupiahMasked(balance);
   el.totalBalance.classList.toggle("is-negative", balance < 0);
 
   el.periodLabel.textContent = currentMonthLabel();
@@ -226,6 +236,8 @@ async function fetchTransactions() {
    Render baris tabel
    ========================================================= */
 function renderTransactions(transactions) {
+  lastRendered = transactions;
+
   if (!transactions.length) {
     showTableState(
       "Belum ada transaksi",
@@ -259,7 +271,9 @@ function renderTransactions(transactions) {
           ${typeLabel}
         </span>
       </td>
-      <td class="cell-amount ${type}">${formatAmount(t.amount, type)}</td>
+      <td class="cell-amount ${type}">${
+        amountsHidden ? AMOUNT_MASK : formatAmount(t.amount, type)
+      }</td>
       <td class="cell-action">
         <button
           type="button"
@@ -454,6 +468,46 @@ function bindEvents() {
   el.transactionDate.addEventListener("change", () => {
     el.transactionDate.removeAttribute("aria-invalid");
   });
+
+  /* Tombol sembunyikan/tampilkan nominal */
+  const visibilityButton = document.getElementById("toggleVisibilityButton");
+  if (visibilityButton) {
+    visibilityButton.addEventListener("click", toggleVisibility);
+  }
+}
+
+/* =========================================================
+   Privasi nominal (sensor *****)
+   ========================================================= */
+const VISIBILITY_ICON_ON = `<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />`;
+const VISIBILITY_ICON_OFF = `<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" />`;
+
+function applyVisibility() {
+  const button = document.getElementById("toggleVisibilityButton");
+  const icon = document.getElementById("visibilityIcon");
+
+  if (button) {
+    button.setAttribute("aria-pressed", String(amountsHidden));
+    const label = amountsHidden ? "Tampilkan nominal" : "Sembunyikan nominal";
+    button.setAttribute("aria-label", label);
+    button.title = label;
+  }
+  if (icon) {
+    icon.innerHTML = amountsHidden ? VISIBILITY_ICON_OFF : VISIBILITY_ICON_ON;
+  }
+
+  updateSummary(lastRendered);
+  if (lastRendered.length) renderTransactions(lastRendered);
+}
+
+function toggleVisibility() {
+  amountsHidden = !amountsHidden;
+  try {
+    localStorage.setItem(VISIBILITY_KEY, String(amountsHidden));
+  } catch (error) {
+    console.error("Gagal menyimpan preferensi privasi:", error);
+  }
+  applyVisibility();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -478,6 +532,14 @@ document.addEventListener("DOMContentLoaded", () => {
     el.periodLabel.textContent = currentMonthLabel();
     syncCategoryOptions();
     bindEvents();
+
+    /* Preferensi sensor nominal dari sesi sebelumnya */
+    try {
+      amountsHidden = localStorage.getItem(VISIBILITY_KEY) === "true";
+    } catch (error) {
+      amountsHidden = false;
+    }
+    applyVisibility();
 
     fetchTransactions();
   } catch (error) {

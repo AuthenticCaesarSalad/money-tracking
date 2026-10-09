@@ -853,6 +853,36 @@ td.cell-action {
   outline-offset: 2px;
 }
 
+/* Tombol ikon (sembunyikan nominal) */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: opacity 0.12s ease, color 0.12s ease, background-color 0.12s ease;
+}
+
+.btn-icon:hover {
+  opacity: 0.75;
+  color: var(--color-text);
+}
+
+.btn-icon[aria-pressed="true"] {
+  color: var(--color-text);
+  background-color: #fafafa;
+}
+
+.btn-icon:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 /* ====== Login & header small-screen tweaks ====== */
 @media (max-width: 520px) {
   .login-panel {
