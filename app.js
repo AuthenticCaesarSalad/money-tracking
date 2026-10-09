@@ -164,6 +164,21 @@ function setFormMessage(text, kind) {
   if (kind) el.formMessage.classList.add(kind);
 }
 
+/* Deteksi error yang disebabkan oleh Row Level Security / hak akses */
+function isPermissionError(error) {
+  const text = `${error?.code ?? ""} ${error?.message ?? ""}`.toLowerCase();
+  return (
+    text.includes("42501") ||
+    text.includes("permission") ||
+    text.includes("row-level security") ||
+    text.includes("rls")
+  );
+}
+
+function permissionHint() {
+  return "Akses ditolak oleh database. Jalankan ulang file sql/schema.sql di Supabase SQL Editor untuk membuat kebijakan Row Level Security bagi peran anon.";
+}
+
 /* =========================================================
    State tabel (empty / error)
    ========================================================= */
@@ -232,11 +247,10 @@ async function fetchTransactions() {
 
   if (error) {
     console.error("Gagal mengambil transaksi:", error);
-    showTableState(
-      "Gagal memuat data",
-      error.message || "Terjadi kesalahan saat menghubungi database.",
-      true
-    );
+    const message = isPermissionError(error)
+      ? `${error.message || "Akses ditolak."} — ${permissionHint()}`
+      : error.message || "Terjadi kesalahan saat menghubungi database.";
+    showTableState("Gagal memuat data", message, true);
     el.tableCount.textContent = "0 catatan";
     updateSummary([]);
     return;
@@ -372,7 +386,10 @@ async function addTransaction(event) {
     await fetchTransactions();
   } catch (error) {
     console.error("Gagal menyimpan transaksi:", error);
-    setFormMessage(error.message || "Gagal menyimpan transaksi.", "error");
+    const message = isPermissionError(error)
+      ? `${error.message || "Akses ditolak."} — ${permissionHint()}`
+      : error.message || "Gagal menyimpan transaksi.";
+    setFormMessage(message, "error");
   } finally {
     isSubmitting = false;
     el.submitButton.disabled = false;

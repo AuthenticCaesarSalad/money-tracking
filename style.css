@@ -426,6 +426,26 @@ input[aria-invalid="true"] {
   font-size: 12px;
   color: var(--color-text-secondary);
   min-height: 16px;
+  line-height: 1.5;
+}
+
+.form-message.error {
+  color: var(--color-expense);
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  min-height: 0;
+  line-height: 1.55;
+}
+
+.form-message.success {
+  color: var(--color-income);
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  min-height: 0;
 }
 
 .form-message.error {

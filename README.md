@@ -70,15 +70,54 @@ Cukup buka file `index.html` di browser:
 
 Jika kredensial benar, form siap digunakan dan tabel akan memuat data yang ada.
 
+## Troubleshooting
+
+### Form simpan berhasil terlihat, tapi data tidak muncul
+
+Penyebab paling umum: kebijakan **Row Level Security (RLS)** untuk peran
+`anon` belum dibuat di tabel `transactions`. Saat RLS aktif tanpa kebijakan,
+PostgREST **menolak insert** dengan error, tetapi operasi `select` tetap
+berjalan — sehingga aplikasi terlihat terhubung padahal tulisan ditolak.
+
+Cara memastikan: pesan error kini tampil sebagai kotak merah di bawah form.
+Jika isinya menyebut *permission* / *row-level security*, lakukan:
+
+1. Buka proyek Supabase > **SQL Editor**.
+2. Jalankan ulang seluruh isi `sql/schema.sql` (aman dijalankan berulang).
+3. Atau jalankan `sql/diagnose.sql` untuk melihat status RLS dan daftar
+   kebijakan yang ada pada tabel.
+4. Pastikan muncul 4 kebijakan: `select`, `insert`, `update`, `delete`
+   untuk peran `anon`.
+
+Untuk aplikasi pribadi yang hanya butuh akses penuh, alternatif tercepat:
+nonaktifkan RLS sepenuhnya (tidak direkomendasikan untuk produksi).
+
+```sql
+alter table public.transactions disable row level security;
+```
+
+### Tabel menampilkan "Gagal memuat data"
+
+- Cek apakah `SUPABASE_URL` dan `SUPABASE_ANON_KEY` sudah benar di `app.js`.
+- Cek koneksi internet (Supabase JS Client dimuat dari CDN).
+- Buka DevTools browser (F12) > tab **Console** untuk pesan error lengkap.
+
+### Tampilan tidak diperbarui setelah deploy
+
+Browser mungkin menggunakan versi `app.js` / `style.css` yang di-cache.
+Lakukan hard reload (`Ctrl + Shift + R` atau `Cmd + Shift + R`), atau
+buka DevTools > **Network** > centang **Disable cache**.
+
 ## Struktur Proyek
 
 ```
 .
-├── index.html      # Struktur UI + CDN Supabase
-├── style.css       # Desain utilitarian (CSS Variables)
-├── app.js          # Logika: inisialisasi Supabase, fetch, insert, delete
+├── index.html          # Struktur UI + CDN Supabase
+├── style.css           # Desain utilitarian (CSS Variables)
+├── app.js              # Logika: inisialisasi Supabase, fetch, insert, delete
 ├── sql/
-│   └── schema.sql  # Skema tabel + kebijakan Row Level Security
+│   ├── schema.sql      # Skema tabel + kebijakan Row Level Security
+│   └── diagnose.sql    # Cek status RLS & kebijakan
 └── README.md
 ```
 
@@ -106,7 +145,8 @@ create index if not exists idx_transactions_created_at
 -- Aktifkan Row Level Security
 alter table public.transactions enable row level security;
 
--- Kebijakan akses anon (aplikasi pribadi, klien memakai anon key)
+-- Kebijakan akses anon (aplikasi pribadi, klien memakai anon key).
+-- Tanpa kebijakan ini, insert dari form akan ditolak database.
 drop policy if exists "transactions_select_anon" on public.transactions;
 create policy "transactions_select_anon"
   on public.transactions for select
@@ -117,10 +157,18 @@ create policy "transactions_insert_anon"
   on public.transactions for insert
   to anon with check (true);
 
+drop policy if exists "transactions_update_anon" on public.transactions;
+create policy "transactions_update_anon"
+  on public.transactions for update
+  to anon using (true) with check (true);
+
 drop policy if exists "transactions_delete_anon" on public.transactions;
 create policy "transactions_delete_anon"
   on public.transactions for delete
   to anon using (true);
+
+-- Pastikan RLS aktif setelah kebijakan dibuat
+alter table public.transactions enable row level security;
 
 -- Perbarui statistik tabel
 analyze public.transactions;
