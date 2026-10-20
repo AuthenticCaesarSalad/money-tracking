@@ -72,7 +72,11 @@ let currentUsername = null;
 const VISIBILITY_KEY = "keuangan_hide_amounts";
 const AMOUNT_MASK = "*****";
 let amountsHidden = false;
-let lastRendered = [];
+let allRows = [];
+
+/* Paginasi tabel riwayat */
+const PAGE_SIZE = 10;
+let currentPage = 1;
 
 /* =========================================================
    Util
@@ -236,7 +240,8 @@ async function fetchTransactions() {
    Render baris tabel
    ========================================================= */
 function renderTransactions(transactions) {
-  lastRendered = transactions;
+  allRows = transactions;
+  currentPage = clampPage(currentPage);
 
   if (!transactions.length) {
     showTableState(
@@ -244,17 +249,24 @@ function renderTransactions(transactions) {
       "Tambahkan transaksi pertama Anda menggunakan form di samping.",
       false
     );
-    el.tableCount.textContent = "0 catatan";
-    updateSummary([]);
-    return;
+  } else {
+    hideTableState();
+    renderPage();
   }
 
-  hideTableState();
+  renderPagination();
+  updateSummary(transactions);
+}
+
+/* Halaman aktif saja, sesuai PAGE_SIZE */
+function renderPage() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageRows = allRows.slice(start, start + PAGE_SIZE);
 
   const ICON_INCOME = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
   const ICON_EXPENSE = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>`;
 
-  const rows = transactions.map((t) => {
+  const rows = pageRows.map((t) => {
     const type = t.type === "income" ? "income" : "expense";
     const typeLabel = type === "income" ? "Pemasukan" : "Pengeluaran";
     const description = t.description
@@ -292,8 +304,69 @@ function renderTransactions(transactions) {
   });
 
   el.tableBody.innerHTML = rows.join("");
-  el.tableCount.textContent = `${transactions.length} catatan`;
-  updateSummary(transactions);
+}
+
+/* Batasi halaman ke rentang yang valid (1 .. jumlah halaman) */
+function clampPage(page) {
+  const maxPage = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
+  return Math.min(Math.max(1, page), maxPage);
+}
+
+/* Tombol Sebelumnya / nomor halaman / Berikutnya */
+function renderPagination() {
+  const container = document.getElementById("paginationBar");
+  if (!container) return;
+
+  const total = allRows.length;
+  const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const start = (currentPage - 1) * PAGE_SIZE;
+
+  if (!total) {
+    container.hidden = true;
+    container.innerHTML = "";
+    el.tableCount.textContent = "0 catatan";
+    return;
+  }
+
+  el.tableCount.textContent =
+    total <= PAGE_SIZE
+      ? `${total} catatan`
+      : `Menampilkan ${start + 1}–${Math.min(start + PAGE_SIZE, total)} dari ${total} catatan`;
+
+  if (total <= PAGE_SIZE) {
+    container.hidden = true;
+    container.innerHTML = "";
+    return;
+  }
+
+  const parts = [];
+  parts.push(
+    `<button type="button" class="pg-btn" data-page="${currentPage - 1}"${
+      currentPage === 1 ? " disabled" : ""
+    }>Sebelumnya</button>`
+  );
+
+  for (let p = 1; p <= maxPage; p++) {
+    const near = Math.abs(p - currentPage) <= 1 || p === 1 || p === maxPage;
+    if (near) {
+      parts.push(
+        `<button type="button" class="pg-btn${
+          p === currentPage ? " is-active" : ""
+        }" data-page="${p}">${p}</button>`
+      );
+    } else if (parts[parts.length - 1] !== `<span class="pg-ellipsis" aria-hidden="true">…</span>`) {
+      parts.push(`<span class="pg-ellipsis" aria-hidden="true">…</span>`);
+    }
+  }
+
+  parts.push(
+    `<button type="button" class="pg-btn" data-page="${currentPage + 1}"${
+      currentPage === maxPage ? " disabled" : ""
+    }>Berikutnya</button>`
+  );
+
+  container.hidden = false;
+  container.innerHTML = parts.join("");
 }
 
 /* =========================================================
@@ -359,6 +432,9 @@ async function addTransaction(event) {
 
     setFormMessage("Transaksi berhasil disimpan.", "success");
     resetForm();
+
+    /* Transaksi terbaru tampil di halaman pertama */
+    currentPage = 1;
 
     /* Refresh data tabel */
     await fetchTransactions();
@@ -459,6 +535,20 @@ function bindEvents() {
     }
   });
 
+  /* Event delegation untuk tombol pagination */
+  const paginationBar = document.getElementById("paginationBar");
+  if (paginationBar) {
+    paginationBar.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-page]");
+      if (!button || button.disabled || !button.dataset.page) return;
+      const page = Number(button.dataset.page);
+      if (!Number.isFinite(page)) return;
+      currentPage = clampPage(page);
+      renderPage();
+      renderPagination();
+    });
+  }
+
   el.amount.addEventListener("input", () => {
     el.amount.removeAttribute("aria-invalid");
   });
@@ -496,8 +586,11 @@ function applyVisibility() {
     icon.innerHTML = amountsHidden ? VISIBILITY_ICON_OFF : VISIBILITY_ICON_ON;
   }
 
-  updateSummary(lastRendered);
-  if (lastRendered.length) renderTransactions(lastRendered);
+  updateSummary(allRows);
+  if (allRows.length) {
+    renderPage();
+    renderPagination();
+  }
 }
 
 function toggleVisibility() {
