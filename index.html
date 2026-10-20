@@ -14,7 +14,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link rel="stylesheet" href="style.css?v=10" />
 </head>
 <body>
   <header class="site-header">
@@ -177,6 +177,45 @@
         <p class="table-count" id="tableCount">0 catatan</p>
       </div>
 
+      <div class="filter-bar">
+        <div class="filter-field">
+          <label class="filter-label" for="filterSearch">Cari</label>
+          <input
+            type="search"
+            id="filterSearch"
+            name="filterSearch"
+            class="filter-input"
+            placeholder="Keterangan atau kategori..."
+            autocomplete="off"
+          />
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filterType">Jenis</label>
+          <select id="filterType" name="filterType" class="filter-input">
+            <option value="all">Semua</option>
+            <option value="income">Pemasukan</option>
+            <option value="expense">Pengeluaran</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filterCategory">Kategori</label>
+          <select id="filterCategory" name="filterCategory" class="filter-input">
+            <option value="all">Semua</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filterFrom">Dari</label>
+          <input type="date" id="filterFrom" name="filterFrom" class="filter-input" />
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filterTo">Sampai</label>
+          <input type="date" id="filterTo" name="filterTo" class="filter-input" />
+        </div>
+        <div class="filter-field filter-field-actions">
+          <button type="button" class="btn-ghost" id="resetFiltersButton">Atur Ulang</button>
+        </div>
+      </div>
+
       <div class="table-wrap">
         <table id="transactionsTable">
           <thead>
@@ -217,6 +256,47 @@
 
       <div class="pagination" id="paginationBar" hidden></div>
     </section>
+
+    <!-- ====== CHARTS ====== -->
+    <section class="charts" aria-label="Grafik keuangan">
+      <article class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Pemasukan vs Pengeluaran</h2>
+            <p>6 bulan terakhir</p>
+          </div>
+        </div>
+        <div class="chart-body">
+          <svg
+            id="monthlyChart"
+            role="img"
+            aria-label="Grafik batang pemasukan dan pengeluaran per bulan"
+            viewBox="0 0 640 240"
+            preserveAspectRatio="xMidYMid meet"
+          ></svg>
+          <p class="chart-empty" id="monthlyChartEmpty" hidden>Belum ada data untuk ditampilkan.</p>
+        </div>
+      </article>
+
+      <article class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Pengeluaran per Kategori</h2>
+            <p id="donutChartSub">Bulan ini</p>
+          </div>
+        </div>
+        <div class="chart-body chart-body-donut">
+          <svg
+            id="categoryChart"
+            role="img"
+            aria-label="Grafik lingkaran pengeluaran per kategori"
+            viewBox="0 0 240 240"
+            preserveAspectRatio="xMidYMid meet"
+          ></svg>
+          <ul class="chart-legend" id="categoryLegend"></ul>
+        </div>
+      </article>
+    </section>
   </main>
 
   <footer class="site-footer">
@@ -233,7 +313,7 @@
       document.head.appendChild(fallback);
     }
   </script>
-  <script src="auth.js?v=6" defer></script>
-  <script src="app.js?v=6" defer></script>
+  <script src="auth.js?v=10" defer></script>
+  <script src="app.js?v=10" defer></script>
 </body>
 </html>

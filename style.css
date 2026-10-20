@@ -129,7 +129,8 @@ body {
   grid-template-columns: 340px minmax(0, 1fr);
   grid-template-areas:
     "summary summary"
-    "form table";
+    "form table"
+    "charts charts";
   gap: var(--space-5);
   align-content: start;
 }
@@ -143,6 +144,13 @@ body {
   border: var(--border-base);
   border-radius: var(--radius);
   overflow: hidden;
+}
+
+.charts {
+  grid-area: charts;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: var(--space-5);
 }
 
 .form-panel {
@@ -744,6 +752,202 @@ td.cell-action {
 }
 
 /* =========================================================
+   Filter bar (riwayat transaksi)
+   ========================================================= */
+.filter-bar {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.6fr) repeat(4, minmax(110px, 1fr)) auto;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-4);
+  border-bottom: var(--border-base);
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.filter-field-actions {
+  justify-content: flex-end;
+}
+
+.filter-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.filter-input {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 3px rgb(9 9 11 / 0.08);
+}
+
+.filter-input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+/* =========================================================
+   Charts (dashboard)
+   ========================================================= */
+.chart-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-panel .panel-head {
+  padding-bottom: var(--space-3);
+  margin-bottom: 0;
+}
+
+.chart-body {
+  width: 100%;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-body-donut {
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.chart-body svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-body-donut svg {
+  width: 200px;
+  flex-shrink: 0;
+}
+
+.chart-empty {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.chart-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+  flex: 1;
+}
+
+.chart-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.chart-legend .legend-swatch {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+
+.chart-legend .legend-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-legend .legend-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text);
+}
+
+/* Bar chart internals */
+.bar-group rect {
+  transition: opacity 0.12s ease;
+}
+
+.bar-group:hover rect {
+  opacity: 0.8;
+}
+
+.bar-value {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  fill: var(--color-text-secondary);
+}
+
+.bar-month-label {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  fill: var(--color-text-tertiary);
+}
+
+.chart-axis-line {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+/* =========================================================
+   Tombol edit pada tabel
+   ========================================================= */
+.btn-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background-color: var(--color-surface);
+  color: var(--color-text-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.btn-edit:hover {
+  color: var(--color-focus);
+  border-color: var(--color-focus);
+  background-color: #f4f4f5;
+}
+
+.btn-edit:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.btn-edit:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* =========================================================
    Footer
    ========================================================= */
 .site-footer {
@@ -770,12 +974,21 @@ td.cell-action {
     grid-template-areas:
       "summary"
       "form"
-      "table";
+      "table"
+      "charts";
     padding: var(--space-4);
   }
 
   .summary {
     grid-template-columns: 1fr;
+  }
+
+  .charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .header-inner {
@@ -795,6 +1008,10 @@ td.cell-action {
   .btn-primary,
   .btn-ghost {
     width: 100%;
+  }
+
+  .filter-bar {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

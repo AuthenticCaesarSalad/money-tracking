@@ -8,8 +8,15 @@ JavaScript) dengan backend **Supabase** (PostgreSQL + Supabase JS Client).
 - Dashboard ringkasan: Total Saldo, Total Pemasukan, Total Pengeluaran.
 - Form input transaksi (jenis, nominal, kategori, tanggal, keterangan opsional).
 - Riwayat transaksi dalam tabel murni dengan nominal rata kanan.
+- **Edit transaksi** per baris (form beralih ke mode "Simpan Perubahan").
+- **Filter & pencarian** riwayat: kata kunci, jenis, kategori, dan rentang
+  tanggal (Dari/Sampai), dengan tombol "Atur Ulang".
+- **Grafik dashboard**: bar chart pemasukan vs pengeluaran (6 bulan terakhir)
+  dan donut chart pengeluaran per kategori (bulan berjalan), murni SVG.
+- **Paginasi** tabel riwayat (10 baris per halaman).
 - Hapus transaksi per baris.
-- Semua data tersimpan di database Supabase (CRUD: Create, Read, Delete).
+- Sensor nominal (sembunyikan/tampilkan angka) untuk privasi layar.
+- Semua data tersimpan di database Supabase (CRUD: Create, Read, Update, Delete).
 - Login multi-user dengan **username + password** (tanpa email).
 - Setiap user hanya melihat transaksinya sendiri (filter per `user_id`).
 
