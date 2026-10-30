@@ -14,7 +14,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=11" />
 </head>
 <body>
   <header class="site-header">
@@ -102,6 +102,33 @@
       </div>
 
       <form id="transactionForm" novalidate>
+        <div class="ai-camera">
+          <button type="button" class="btn-camera" id="openCameraButton">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3Z" />
+              <circle cx="12" cy="13" r="3" />
+            </svg>
+            Pindai Invoice dengan AI
+          </button>
+          <p class="camera-note">Foto disimpan privat dan dikirim ke model gratis OpenRouter yang dapat mencatat input. Jangan pindai data rahasia; periksa hasil sebelum menyimpan.</p>
+
+          <div class="camera-stage" id="cameraStage" hidden>
+            <video id="cameraVideo" playsinline muted aria-label="Pratinjau kamera"></video>
+            <img id="cameraPreview" alt="Foto invoice yang dipindai" hidden />
+            <canvas id="cameraCanvas" hidden></canvas>
+            <div class="camera-actions">
+              <button type="button" class="btn-primary" id="captureInvoiceButton">Ambil Foto</button>
+              <button type="button" class="btn-ghost" id="retryCameraButton" hidden>Foto Ulang</button>
+              <label class="btn-ghost camera-upload" for="invoiceFileInput">
+                Pilih Foto
+                <input type="file" id="invoiceFileInput" accept="image/jpeg,image/png,image/webp" capture="environment" hidden />
+              </label>
+              <button type="button" class="btn-ghost" id="closeCameraButton">Tutup</button>
+            </div>
+            <p class="camera-message" id="cameraMessage" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+
         <fieldset class="field type-field">
           <legend class="field-label">Jenis Transaksi</legend>
           <div class="radio-row">
@@ -313,7 +340,7 @@
       document.head.appendChild(fallback);
     }
   </script>
-  <script src="auth.js?v=10" defer></script>
-  <script src="app.js?v=10" defer></script>
+  <script src="auth.js?v=11" defer></script>
+  <script src="app.js?v=11" defer></script>
 </body>
 </html>

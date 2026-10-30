@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/invoice.py": {
+      "maxDuration": 60
+    }
+  }
+}

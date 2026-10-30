@@ -152,6 +152,24 @@ create policy "transactions_delete_anon"
 -- ---------------------------------------------------------
 analyze public.transactions;
 
+-- ---------------------------------------------------------
+-- 7. Bucket privat untuk foto invoice dari Vercel Function.
+--    Upload memakai SUPABASE_SERVICE_ROLE_KEY di server, sehingga
+--    tidak memerlukan policy Storage untuk peran anon.
+-- ---------------------------------------------------------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'invoice-images',
+  'invoice-images',
+  false,
+  3000000,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
 -- =========================================================
 -- BAGIAN OPSIONAL (hapus komentar untuk menjalankan)
 -- =========================================================

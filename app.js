@@ -47,6 +47,18 @@ const el = {
   resetButton: document.getElementById("resetButton"),
   formMessage: document.getElementById("formMessage"),
 
+  /* AI invoice camera */
+  openCameraButton: document.getElementById("openCameraButton"),
+  cameraStage: document.getElementById("cameraStage"),
+  cameraVideo: document.getElementById("cameraVideo"),
+  cameraPreview: document.getElementById("cameraPreview"),
+  cameraCanvas: document.getElementById("cameraCanvas"),
+  captureInvoiceButton: document.getElementById("captureInvoiceButton"),
+  retryCameraButton: document.getElementById("retryCameraButton"),
+  closeCameraButton: document.getElementById("closeCameraButton"),
+  invoiceFileInput: document.getElementById("invoiceFileInput"),
+  cameraMessage: document.getElementById("cameraMessage"),
+
   totalBalance: document.getElementById("totalBalance"),
   totalIncome: document.getElementById("totalIncome"),
   totalExpense: document.getElementById("totalExpense"),
@@ -105,6 +117,10 @@ let filterState = {
 /* Mode edit transaksi */
 let editingId = null;
 
+/* AI invoice camera */
+let cameraStream = null;
+let isScanningInvoice = false;
+
 /* =========================================================
    Util
    ========================================================= */
@@ -138,6 +154,168 @@ function todayISO() {
 
 function currentMonthLabel() {
   return monthFormatter.format(new Date());
+}
+
+/* =========================================================
+   AI invoice camera
+   ========================================================= */
+function setCameraMessage(text, kind) {
+  if (!el.cameraMessage) return;
+  el.cameraMessage.textContent = text;
+  el.cameraMessage.classList.remove("error", "success");
+  if (kind) el.cameraMessage.classList.add(kind);
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach((track) => track.stop());
+    cameraStream = null;
+  }
+  if (el.cameraVideo) el.cameraVideo.srcObject = null;
+}
+
+async function openInvoiceCamera() {
+  if (isScanningInvoice) return;
+  el.cameraStage.hidden = false;
+  el.cameraPreview.hidden = true;
+  el.cameraVideo.hidden = false;
+  el.captureInvoiceButton.hidden = false;
+  el.retryCameraButton.hidden = true;
+  setCameraMessage("Meminta akses kamera...", null);
+
+  stopCamera();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    el.cameraVideo.hidden = true;
+    el.captureInvoiceButton.hidden = true;
+    setCameraMessage("Kamera langsung tidak tersedia. Gunakan tombol Pilih Foto.", "error");
+    return;
+  }
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false,
+    });
+    el.cameraVideo.srcObject = cameraStream;
+    await el.cameraVideo.play();
+    setCameraMessage("Posisikan seluruh invoice di dalam gambar.", null);
+  } catch (error) {
+    console.error("Gagal membuka kamera:", error);
+    el.cameraVideo.hidden = true;
+    el.captureInvoiceButton.hidden = true;
+    setCameraMessage("Akses kamera ditolak. Gunakan tombol Pilih Foto.", "error");
+  }
+}
+
+function imageToDataUrl(source, width, height) {
+  const maxSide = 1600;
+  const scale = Math.min(1, maxSide / Math.max(width, height));
+  const canvas = el.cameraCanvas;
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+  let quality = 0.82;
+  let dataUrl = canvas.toDataURL("image/jpeg", quality);
+  while (dataUrl.length > 3_700_000 && quality > 0.5) {
+    quality -= 0.1;
+    dataUrl = canvas.toDataURL("image/jpeg", quality);
+  }
+  return dataUrl;
+}
+
+async function captureInvoice() {
+  if (!el.cameraVideo.videoWidth || !el.cameraVideo.videoHeight) {
+    setCameraMessage("Kamera belum siap. Coba lagi sesaat.", "error");
+    return;
+  }
+  const dataUrl = imageToDataUrl(
+    el.cameraVideo,
+    el.cameraVideo.videoWidth,
+    el.cameraVideo.videoHeight
+  );
+  await scanInvoice(dataUrl);
+}
+
+function readInvoiceFile(file) {
+  if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    setCameraMessage("Pilih foto JPEG, PNG, atau WebP.", "error");
+    return;
+  }
+  if (file.size > 10_000_000) {
+    setCameraMessage("Foto sumber maksimal 10 MB.", "error");
+    return;
+  }
+
+  const image = new Image();
+  const objectUrl = URL.createObjectURL(file);
+  image.onload = async () => {
+    URL.revokeObjectURL(objectUrl);
+    const dataUrl = imageToDataUrl(image, image.naturalWidth, image.naturalHeight);
+    await scanInvoice(dataUrl);
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    setCameraMessage("Foto tidak dapat dibaca.", "error");
+  };
+  image.src = objectUrl;
+}
+
+function applyInvoiceExpense(expense) {
+  cancelEdit();
+  document.querySelector('input[name="type"][value="expense"]').checked = true;
+  syncCategoryOptions();
+  el.amount.value = expense.amount;
+  el.category.value = CATEGORIES.expense.includes(expense.category)
+    ? expense.category
+    : "Lainnya";
+  el.transactionDate.value = expense.transaction_date;
+  el.description.value = String(expense.description || "").slice(0, 120);
+  [el.amount, el.category, el.transactionDate].forEach((input) =>
+    input.removeAttribute("aria-invalid")
+  );
+  setFormMessage("Invoice dibaca oleh AI. Periksa data lalu simpan transaksi.", "success");
+  el.amount.focus();
+}
+
+async function scanInvoice(dataUrl) {
+  if (isScanningInvoice) return;
+  isScanningInvoice = true;
+  stopCamera();
+  el.cameraVideo.hidden = true;
+  el.cameraPreview.src = dataUrl;
+  el.cameraPreview.hidden = false;
+  el.captureInvoiceButton.hidden = true;
+  el.retryCameraButton.hidden = true;
+  el.invoiceFileInput.disabled = true;
+  setCameraMessage("Menyimpan foto dan membaca invoice dengan AI...", null);
+
+  try {
+    const response = await fetch("/api/invoice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: dataUrl, user_id: currentUserId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const suffix = result.saved_path ? " Foto tetap berhasil disimpan." : "";
+      throw new Error((result.error || "Invoice gagal diproses.") + suffix);
+    }
+    applyInvoiceExpense(result.expense);
+    setCameraMessage("Foto tersimpan dan data invoice dimasukkan ke form.", "success");
+  } catch (error) {
+    console.error("Gagal memindai invoice:", error);
+    setCameraMessage(error.message || "Invoice gagal diproses.", "error");
+  } finally {
+    isScanningInvoice = false;
+    el.invoiceFileInput.disabled = false;
+    el.retryCameraButton.hidden = false;
+  }
+}
+
+function closeInvoiceCamera() {
+  stopCamera();
+  el.cameraStage.hidden = true;
+  setCameraMessage("", null);
 }
 
 /* =========================================================
@@ -958,6 +1136,18 @@ function showFatalError(title, sub) {
    ========================================================= */
 function bindEvents() {
   el.form.addEventListener("submit", addTransaction);
+
+  if (el.openCameraButton) el.openCameraButton.addEventListener("click", openInvoiceCamera);
+  if (el.captureInvoiceButton) el.captureInvoiceButton.addEventListener("click", captureInvoice);
+  if (el.retryCameraButton) el.retryCameraButton.addEventListener("click", openInvoiceCamera);
+  if (el.closeCameraButton) el.closeCameraButton.addEventListener("click", closeInvoiceCamera);
+  if (el.invoiceFileInput) {
+    el.invoiceFileInput.addEventListener("change", () => {
+      const file = el.invoiceFileInput.files && el.invoiceFileInput.files[0];
+      readInvoiceFile(file);
+      el.invoiceFileInput.value = "";
+    });
+  }
 
   el.typeInputs.forEach((input) => {
     input.addEventListener("change", syncCategoryOptions);

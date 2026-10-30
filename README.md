@@ -16,6 +16,8 @@ JavaScript) dengan backend **Supabase** (PostgreSQL + Supabase JS Client).
 - **Paginasi** tabel riwayat (10 baris per halaman).
 - Hapus transaksi per baris.
 - Sensor nominal (sembunyikan/tampilkan angka) untuk privasi layar.
+- **AI Camera invoice**: ambil/pilih foto, simpan privat di Supabase Storage,
+  baca invoice lewat OpenRouter, lalu isi form pengeluaran otomatis.
 - Semua data tersimpan di database Supabase (CRUD: Create, Read, Update, Delete).
 - Login multi-user dengan **username + password** (tanpa email).
 - Setiap user hanya melihat transaksinya sendiri (filter per `user_id`).
@@ -23,7 +25,8 @@ JavaScript) dengan backend **Supabase** (PostgreSQL + Supabase JS Client).
 ## Prasyarat
 
 - Akun Supabase (gratis) di <https://supabase.com>.
-- Browser modern. Tidak butuh Node.js, npm, atau build tool apa pun.
+- Browser modern dengan izin kamera.
+- Akun Vercel dan API key OpenRouter.
 
 ## Cara Memulai
 
@@ -94,6 +97,39 @@ Cukup buka file `index.html` di browser:
 Jika kredensial benar, halaman akan mengarahkan ke `login.html`. Masukkan
 username + password yang dibuat di langkah 3, lalu Anda dialihkan ke
 `index.html` dan tabel akan memuat data yang ada.
+
+## Deploy Vercel + AI Camera
+
+1. Jalankan ulang `sql/schema.sql` di Supabase SQL Editor. Ini membuat bucket
+   privat `invoice-images` selain tabel aplikasi.
+2. Di OpenRouter, buat API key dari <https://openrouter.ai/settings/keys>.
+3. Di Vercel Project > **Settings > Environment Variables**, tambahkan:
+
+   | Nama | Nilai |
+   | ---- | ----- |
+   | `OPENROUTER_API_KEY` | API key OpenRouter |
+   | `SUPABASE_URL` | URL proyek Supabase |
+   | `SUPABASE_SERVICE_ROLE_KEY` | service role key dari Supabase Settings > API |
+
+4. Terapkan variabel ke Production, Preview, dan Development sesuai kebutuhan,
+   lalu redeploy commit terbaru.
+5. Buka situs melalui HTTPS, izinkan kamera, lalu tekan **Pindai Invoice dengan
+   AI**. Hasil AI hanya mengisi form; periksa nominal dan tanggal sebelum
+   menekan **Simpan Transaksi**.
+
+`SUPABASE_SERVICE_ROLE_KEY` hanya boleh berada di Vercel Environment Variables.
+Jangan menaruhnya di `auth.js` atau commit ke repository. Foto tersimpan di
+bucket privat dengan path per user. Model yang diminta,
+`nvidia/nemotron-3-ultra-550b-a55b:free`, hanya menerima teks, sehingga function
+memakai `nvidia/nemotron-3.5-super-vl:free` untuk membaca gambar lalu memakai
+Nemotron 3 Ultra untuk membentuk data pengeluaran. Dua request free-tier dipakai
+per invoice. Endpoint gratis dapat mencatat input, jadi jangan unggah invoice
+yang memuat informasi pribadi atau rahasia.
+
+Login aplikasi saat ini berbasis `localStorage`, bukan token Supabase Auth, jadi
+endpoint AI publik belum dapat memverifikasi identitas user secara kuat. Untuk
+penggunaan publik berisiko tinggi, lindungi `/api/invoice` dengan Vercel Firewall
+atau migrasikan login ke Supabase Auth dan validasi JWT di function.
 
 ## Troubleshooting
 
@@ -170,6 +206,9 @@ buka DevTools > **Network** > centang **Disable cache**.
 ├── style.css           # Desain utilitarian (CSS Variables)
 ├── app.js              # Logika: fetch, insert, delete (filter per user_id)
 ├── auth.js             # Config Supabase, session localStorage, login/logout
+├── api/invoice.py      # Vercel Python Function: simpan + baca invoice
+├── vercel.json         # Durasi maksimum function AI
+├── test_invoice.py     # Unit test validasi/parsing endpoint invoice
 ├── sql/
 │   ├── schema.sql      # Tabel users + transactions, fungsi, RLS
 │   └── diagnose.sql    # Cek status RLS & kebijakan

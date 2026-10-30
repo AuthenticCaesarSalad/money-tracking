@@ -267,6 +267,96 @@ form {
   min-width: 0;
 }
 
+/* AI invoice camera */
+.ai-camera {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: var(--border-base);
+}
+
+.btn-camera {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 10px 14px;
+  font: 600 13px var(--font-sans);
+  color: #ffffff;
+  background: var(--color-button);
+  border: 1px solid var(--color-button);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.btn-camera:hover {
+  opacity: 0.85;
+}
+
+.btn-camera:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.camera-note,
+.camera-message {
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+}
+
+.camera-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.camera-stage[hidden] {
+  display: none;
+}
+
+.camera-stage video,
+.camera-stage img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  background: #18181b;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.camera-stage video[hidden],
+.camera-stage img[hidden] {
+  display: none;
+}
+
+.camera-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.camera-actions .btn-primary {
+  flex: 1 1 120px;
+}
+
+.camera-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-message.error {
+  color: var(--color-expense);
+}
+
+.camera-message.success {
+  color: var(--color-income);
+}
+
 .type-field {
   border: none;
   margin: 0;
