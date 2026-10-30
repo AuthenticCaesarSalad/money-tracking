@@ -1,4 +1,4 @@
-"""Vercel Python function for invoice photo extraction."""
+"""Vercel Python function for receipt photo extraction."""
 
 import base64
 import binascii
@@ -6,12 +6,11 @@ import json
 import os
 import re
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
-
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 PARSER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
@@ -21,6 +20,45 @@ MAX_BODY_BYTES = 4_000_000
 MAX_IMAGE_BYTES = 3_000_000
 ALLOWED_CATEGORIES = ("Makanan", "Transportasi", "Tagihan", "Lainnya")
 DATA_URL_RE = re.compile(r"^data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\s]+)$")
+MONTHS = {
+    "jan": 1,
+    "januari": 1,
+    "january": 1,
+    "feb": 2,
+    "februari": 2,
+    "february": 2,
+    "mar": 3,
+    "maret": 3,
+    "march": 3,
+    "apr": 4,
+    "april": 4,
+    "mei": 5,
+    "may": 5,
+    "jun": 6,
+    "juni": 6,
+    "june": 6,
+    "jul": 7,
+    "juli": 7,
+    "july": 7,
+    "agu": 8,
+    "agt": 8,
+    "agustus": 8,
+    "aug": 8,
+    "august": 8,
+    "sep": 9,
+    "sept": 9,
+    "september": 9,
+    "okt": 10,
+    "oktober": 10,
+    "oct": 10,
+    "october": 10,
+    "nov": 11,
+    "november": 11,
+    "des": 12,
+    "desember": 12,
+    "dec": 12,
+    "december": 12,
+}
 
 
 class ApiError(Exception):
@@ -31,7 +69,7 @@ class ApiError(Exception):
 
 def decode_image(data_url):
     if not isinstance(data_url, str):
-        raise ApiError("Foto invoice tidak ditemukan.")
+        raise ApiError("Foto struk tidak ditemukan.")
 
     match = DATA_URL_RE.fullmatch(data_url)
     if not match:
@@ -89,7 +127,7 @@ def save_image(image, mime_type, user_id):
     supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
     service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     if not supabase_url or not service_key:
-        raise ApiError("Penyimpanan invoice belum dikonfigurasi di Vercel.", 503)
+        raise ApiError("Penyimpanan struk belum dikonfigurasi di Vercel.", 503)
 
     extension = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[mime_type]
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -150,11 +188,11 @@ def openrouter_chat(model, messages, tools=None, tool_choice=None):
         try:
             return message["tool_calls"][0]["function"]["arguments"]
         except (KeyError, IndexError, TypeError) as error:
-            raise ApiError("AI tidak menghasilkan data invoice terstruktur.", 502) from error
+            raise ApiError("AI tidak menghasilkan data struk terstruktur.", 502) from error
 
     content = message.get("content")
     if not isinstance(content, str) or not content.strip():
-        raise ApiError("AI tidak menghasilkan data invoice.", 502)
+        raise ApiError("AI tidak menghasilkan data struk.", 502)
     return content.strip()
 
 
@@ -168,27 +206,75 @@ def extract_json(text):
     try:
         return json.loads(text[start : end + 1])
     except json.JSONDecodeError as error:
-        raise ApiError("Data invoice dari AI tidak dapat dibaca.", 502) from error
+        raise ApiError("Data struk dari AI tidak dapat dibaca.", 502) from error
+
+
+def normalize_receipt_date(value, today=None):
+    """Return a supported receipt date as ISO, rejecting invalid or future dates."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("missing receipt date")
+
+    value = value.strip()
+    today = today or datetime.now(timezone(timedelta(hours=7))).date()
+    parts = None
+
+    iso_match = re.match(r"^(\d{4})-(\d{2})-(\d{2})(?:$|[Tt\s])", value)
+    if iso_match:
+        parts = map(int, iso_match.groups())
+    else:
+        numeric_match = re.fullmatch(r"(\d{1,2})([/.-])(\d{1,2})\2(\d{2}|\d{4})", value)
+        if numeric_match:
+            day, _, month, year = numeric_match.groups()
+            year = int(year)
+            parts = (
+                year + (2000 if year < 69 else 1900) if year < 100 else year,
+                int(month),
+                int(day),
+            )
+        else:
+            day_first = re.fullmatch(
+                r"(\d{1,2})\s+([A-Za-z]+)\s*,?\s*(\d{2}|\d{4})", value
+            )
+            month_first = re.fullmatch(
+                r"([A-Za-z]+)\s+(\d{1,2})\s*,?\s*(\d{2}|\d{4})", value
+            )
+            if day_first:
+                day, month_name, year = day_first.groups()
+            elif month_first:
+                month_name, day, year = month_first.groups()
+            else:
+                raise ValueError("unknown receipt date format")
+            month = MONTHS.get(month_name.lower())
+            if month is None:
+                raise ValueError("unknown receipt month")
+            year = int(year)
+            parts = (
+                year + (2000 if year < 69 else 1900) if year < 100 else year,
+                month,
+                int(day),
+            )
+
+    parsed = date(*parts)
+    if parsed > today:
+        raise ValueError("future receipt date")
+    return parsed.isoformat()
 
 
 def normalize_expense(data):
     if not isinstance(data, dict) or data.get("valid") is not True:
-        raise ApiError("Foto tidak terlihat seperti invoice yang dapat dibaca.", 422)
+        raise ApiError("Foto tidak terlihat seperti struk yang dapat dibaca.", 422)
 
     try:
         amount = round(float(data.get("amount", 0)))
     except (TypeError, ValueError) as error:
-        raise ApiError("Nominal invoice tidak dapat dibaca.", 422) from error
+        raise ApiError("Nominal struk tidak dapat dibaca.", 422) from error
     if amount <= 0:
-        raise ApiError("Nominal invoice tidak ditemukan.", 422)
+        raise ApiError("Nominal struk tidak ditemukan.", 422)
 
-    transaction_date = str(data.get("transaction_date", ""))
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", transaction_date):
-        raise ApiError("Tanggal invoice tidak dapat dibaca.", 422)
     try:
-        date.fromisoformat(transaction_date)
-    except ValueError as error:
-        raise ApiError("Tanggal invoice tidak dapat dibaca.", 422) from error
+        transaction_date = normalize_receipt_date(data.get("transaction_date"))
+    except (TypeError, ValueError) as error:
+        raise ApiError("Tanggal struk tidak dapat dibaca.", 422) from error
 
     category = data.get("category")
     if category not in ALLOWED_CATEGORIES:
@@ -214,9 +300,14 @@ def analyze_invoice(data_url):
                     {
                         "type": "text",
                         "text": (
-                            "Transcribe this invoice or receipt accurately. Include merchant, date, "
-                            "grand total, currency, invoice number, and visible purchased items. "
-                            "Do not guess unreadable text. Return plain text only."
+                            "Transcribe this Indonesian struk/bukti transaksi (receipt or proof of "
+                            "transaction) accurately. "
+                            "Recognize retail/shop receipts, restaurant/cafe receipts, fuel receipts, "
+                            "parking/toll/transport tickets, utility/service bills with payment proof, "
+                            "e-commerce receipts, digital payment receipts, invoices/faktur, and "
+                            "handwritten receipts. Transcribe every visible date with its printed label, "
+                            "the merchant/payee/provider, final total actually paid, currency, reference "
+                            "number, and useful visible items. Never guess unreadable text. Return plain text only."
                         ),
                     },
                     {"type": "image_url", "image_url": {"url": data_url}},
@@ -230,7 +321,7 @@ def analyze_invoice(data_url):
             "type": "function",
             "function": {
                 "name": "record_expense",
-                "description": "Return the normalized expense fields extracted from the invoice.",
+                "description": "Return the normalized expense fields extracted from the receipt.",
                 "parameters": {
                     "type": "object",
                     "additionalProperties": False,
@@ -258,16 +349,26 @@ def analyze_invoice(data_url):
             {
                 "role": "system",
                 "content": (
-                    "Convert invoice transcription into one Indonesian expense. Use the grand total, "
-                    "not subtotal or change. Categories: Makanan for food/drink; Transportasi for "
-                    "transport/fuel/parking; Tagihan for utilities/subscriptions; otherwise Lainnya. "
-                    "Set valid=false when the merchant, positive grand total, or invoice date is "
-                    "missing. description should contain merchant and useful invoice detail."
+                    "Convert the struk/bukti transaksi (receipt or proof-of-transaction) transcription "
+                    "into one Indonesian expense. "
+                    "Accept a merchant, payee, provider, or operator as the counterparty. Choose the final "
+                    "amount actually paid, never a subtotal, tax-only amount, balance, or change. Choose the "
+                    "transaction, payment, or purchase date, never a due or expiry date; use an issue/print "
+                    "date only when it clearly represents the transaction time. Interpret ambiguous numeric "
+                    "dates day-first as used in Indonesia. Return transaction_date strictly as ISO YYYY-MM-DD. "
+                    "Never invent a date or default a missing date to today. Categories: Makanan for food/drink; "
+                    "Transportasi for transport/fuel/parking; Tagihan for utilities/subscriptions; otherwise "
+                    "Lainnya. Set valid=false when the counterparty, positive final paid amount, or valid "
+                    "transaction date is missing. description should contain the counterparty and useful detail."
                 ),
             },
             {
                 "role": "user",
-                "content": f"Today is {date.today().isoformat()}.\n\nInvoice transcription:\n{vision_text[:12000]}",
+                "content": (
+                    f"Today in WIB is {datetime.now(timezone(timedelta(hours=7))).date().isoformat()} "
+                    "(only for rejecting future dates, never as a fallback).\n\n"
+                    f"Receipt transcription:\n{vision_text[:12000]}"
+                ),
             },
         ],
         tools,
@@ -312,5 +413,5 @@ class handler(BaseHTTPRequestHandler):
                 response["saved_path"] = saved_path
             self.send_json(error.status, response)
         except Exception as error:  # pragma: no cover - final server boundary
-            print(f"Unexpected invoice API error: {error}")
-            self.send_json(500, {"error": "Terjadi kesalahan internal saat memproses invoice."})
+            print(f"Unexpected receipt API error: {error}")
+            self.send_json(500, {"error": "Terjadi kesalahan internal saat memproses struk."})

@@ -16,8 +16,12 @@ JavaScript) dengan backend **Supabase** (PostgreSQL + Supabase JS Client).
 - **Paginasi** tabel riwayat (10 baris per halaman).
 - Hapus transaksi per baris.
 - Sensor nominal (sembunyikan/tampilkan angka) untuk privasi layar.
-- **AI Camera invoice**: ambil/pilih foto, simpan privat di Supabase Storage,
-  baca invoice lewat OpenRouter, lalu isi form pengeluaran otomatis.
+- **AI Camera struk**: ambil/pilih foto, simpan privat di Supabase Storage,
+  baca struk atau bukti transaksi lewat OpenRouter, lalu isi form pengeluaran
+  otomatis. Mendukung struk retail, makanan, BBM, parkir/tol/transportasi,
+  tagihan/bukti pembayaran, e-commerce/pembayaran digital, invoice/faktur, dan
+  kuitansi tulisan tangan. Tanggal transaksi dibaca dan dinormalisasi; pengguna
+  tetap harus memeriksa nominal dan tanggal sebelum menyimpan.
 - Semua data tersimpan di database Supabase (CRUD: Create, Read, Update, Delete).
 - Login multi-user dengan **username + password** (tanpa email).
 - Setiap user hanya melihat transaksinya sendiri (filter per `user_id`).
@@ -113,7 +117,7 @@ username + password yang dibuat di langkah 3, lalu Anda dialihkan ke
 
 4. Terapkan variabel ke Production, Preview, dan Development sesuai kebutuhan,
    lalu redeploy commit terbaru.
-5. Buka situs melalui HTTPS, izinkan kamera, lalu tekan **Pindai Invoice dengan
+5. Buka situs melalui HTTPS, izinkan kamera, lalu tekan **Pindai Struk dengan
    AI**. Hasil AI hanya mengisi form; periksa nominal dan tanggal sebelum
    menekan **Simpan Transaksi**.
 
@@ -123,7 +127,7 @@ bucket privat dengan path per user. Model yang diminta,
 `nvidia/nemotron-3-ultra-550b-a55b:free`, hanya menerima teks, sehingga function
 memakai `nvidia/nemotron-3.5-super-vl:free` untuk membaca gambar lalu memakai
 Nemotron 3 Ultra untuk membentuk data pengeluaran. Dua request free-tier dipakai
-per invoice. Endpoint gratis dapat mencatat input, jadi jangan unggah invoice
+per struk. Endpoint gratis dapat mencatat input, jadi jangan unggah struk
 yang memuat informasi pribadi atau rahasia.
 
 Login aplikasi saat ini berbasis `localStorage`, bukan token Supabase Auth, jadi

@@ -198,7 +198,7 @@ async function openInvoiceCamera() {
     });
     el.cameraVideo.srcObject = cameraStream;
     await el.cameraVideo.play();
-    setCameraMessage("Posisikan seluruh invoice di dalam gambar.", null);
+    setCameraMessage("Posisikan seluruh struk di dalam gambar.", null);
   } catch (error) {
     console.error("Gagal membuka kamera:", error);
     el.cameraVideo.hidden = true;
@@ -273,7 +273,7 @@ function applyInvoiceExpense(expense) {
   [el.amount, el.category, el.transactionDate].forEach((input) =>
     input.removeAttribute("aria-invalid")
   );
-  setFormMessage("Invoice dibaca oleh AI. Periksa data lalu simpan transaksi.", "success");
+  setFormMessage("Struk dibaca oleh AI. Periksa nominal dan tanggal lalu simpan transaksi.", "success");
   el.amount.focus();
 }
 
@@ -287,7 +287,7 @@ async function scanInvoice(dataUrl) {
   el.captureInvoiceButton.hidden = true;
   el.retryCameraButton.hidden = true;
   el.invoiceFileInput.disabled = true;
-  setCameraMessage("Menyimpan foto dan membaca invoice dengan AI...", null);
+  setCameraMessage("Menyimpan foto dan membaca struk dengan AI...", null);
 
   try {
     const response = await fetch("/api/invoice", {
@@ -298,13 +298,14 @@ async function scanInvoice(dataUrl) {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
       const suffix = result.saved_path ? " Foto tetap berhasil disimpan." : "";
-      throw new Error((result.error || "Invoice gagal diproses.") + suffix);
+      const message = String(result.error || "Struk gagal diproses.").replace(/invoice/gi, "struk");
+      throw new Error(message + suffix);
     }
     applyInvoiceExpense(result.expense);
-    setCameraMessage("Foto tersimpan dan data invoice dimasukkan ke form.", "success");
+    setCameraMessage("Foto tersimpan dan data struk dimasukkan ke form.", "success");
   } catch (error) {
     console.error("Gagal memindai invoice:", error);
-    setCameraMessage(error.message || "Invoice gagal diproses.", "error");
+    setCameraMessage(error.message || "Struk gagal diproses.", "error");
   } finally {
     isScanningInvoice = false;
     el.invoiceFileInput.disabled = false;
