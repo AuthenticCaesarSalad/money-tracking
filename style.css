@@ -349,6 +349,18 @@ form {
   justify-content: center;
 }
 
+.camera-upload:has(input:disabled),
+.btn-camera:disabled,
+.btn-ghost:disabled,
+.radio-pill:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.camera-upload:has(input:disabled) {
+  pointer-events: none;
+}
+
 .camera-message.error {
   color: var(--color-expense);
 }
@@ -631,7 +643,8 @@ tbody tr.deleting {
 }
 
 .col-action {
-  width: 64px;
+  width: 180px;
+  min-width: 180px;
   text-align: center;
 }
 
@@ -712,6 +725,64 @@ td.cell-amount.expense {
 
 td.cell-action {
   text-align: center;
+  white-space: nowrap;
+}
+
+.btn-receipt {
+  font: 500 11.5px var(--font-sans);
+  height: 28px;
+  padding: 0 7px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border: var(--border-base);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.btn-receipt:hover {
+  border-color: var(--color-focus);
+  color: var(--color-text);
+}
+
+.btn-receipt:focus-visible,
+.receipt-link:focus-visible,
+.receipt-dialog .btn-ghost:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.receipt-dialog {
+  margin: auto;
+  width: min(440px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.receipt-dialog::backdrop {
+  background: rgb(9 9 11 / 0.5);
+}
+
+.receipt-dialog h2 {
+  font-size: 15px;
+}
+
+.receipt-dialog p {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.receipt-link {
+  text-align: center;
+  text-decoration: none;
+}
+
+.receipt-link[hidden] {
+  display: none;
 }
 
 .btn-delete {

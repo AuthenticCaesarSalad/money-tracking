@@ -58,6 +58,15 @@ const el = {
   closeCameraButton: document.getElementById("closeCameraButton"),
   invoiceFileInput: document.getElementById("invoiceFileInput"),
   cameraMessage: document.getElementById("cameraMessage"),
+  receiptSelection: document.getElementById("receiptSelection"),
+  receiptDialog: document.getElementById("receiptDialog"),
+  receiptViewForm: document.getElementById("receiptViewForm"),
+  receiptUsername: document.getElementById("receiptUsername"),
+  receiptPassword: document.getElementById("receiptPassword"),
+  receiptViewButton: document.getElementById("receiptViewButton"),
+  receiptCancelButton: document.getElementById("receiptCancelButton"),
+  receiptViewStatus: document.getElementById("receiptViewStatus"),
+  receiptLink: document.getElementById("receiptLink"),
 
   totalBalance: document.getElementById("totalBalance"),
   totalIncome: document.getElementById("totalIncome"),
@@ -116,10 +125,16 @@ let filterState = {
 
 /* Mode edit transaksi */
 let editingId = null;
+let receiptPath = null;
+let formUnavailable = false;
 
 /* AI invoice camera */
 let cameraStream = null;
 let isScanningInvoice = false;
+let cameraRequestVersion = 0;
+let receiptTransactionId = null;
+let receiptViewVersion = 0;
+let receiptViewController = null;
 
 /* =========================================================
    Util
@@ -176,6 +191,27 @@ function setCameraMessage(text, kind) {
   if (kind) el.cameraMessage.classList.add(kind);
 }
 
+function syncReceiptSelection() {
+  el.receiptSelection.textContent = receiptPath
+    ? "Struk terlampir. Lampiran akan dipertahankan saat disimpan."
+    : "Tidak ada struk terlampir.";
+}
+
+function lockTransactionForm() {
+  const controls = [...el.form.querySelectorAll("input, select, button")];
+  const previous = controls.map((control) => control.disabled);
+  controls.forEach((control) => { control.disabled = true; });
+  el.form.setAttribute("aria-busy", "true");
+  renderPage();
+  return () => {
+    controls.forEach((control, index) => {
+      control.disabled = previous[index] || formUnavailable;
+    });
+    el.form.removeAttribute("aria-busy");
+    renderPage();
+  };
+}
+
 function stopCamera() {
   if (cameraStream) {
     cameraStream.getTracks().forEach((track) => track.stop());
@@ -185,7 +221,8 @@ function stopCamera() {
 }
 
 async function openInvoiceCamera() {
-  if (isScanningInvoice) return;
+  if (isScanningInvoice || isSubmitting || formUnavailable || !currentUserId || !supabaseClient) return;
+  const requestVersion = ++cameraRequestVersion;
   el.cameraStage.hidden = false;
   el.cameraPreview.hidden = true;
   el.cameraVideo.hidden = false;
@@ -202,14 +239,24 @@ async function openInvoiceCamera() {
   }
 
   try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "environment" } },
       audio: false,
     });
+    if (requestVersion !== cameraRequestVersion || el.cameraStage.hidden || isSubmitting || isScanningInvoice) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    cameraStream = stream;
     el.cameraVideo.srcObject = cameraStream;
     await el.cameraVideo.play();
-    setCameraMessage("Posisikan seluruh struk di dalam gambar.", null);
+    if (requestVersion !== cameraRequestVersion) return;
+    setCameraMessage(editingId
+      ? "Mode edit: scan berhasil akan membatalkan edit dan menyiapkan transaksi BARU, bukan mengganti struk transaksi ini."
+      : "Posisikan seluruh struk di dalam gambar. Scan berhasil menyiapkan transaksi baru.", null);
   } catch (error) {
+    if (requestVersion !== cameraRequestVersion) return;
+    stopCamera();
     console.error("Gagal membuka kamera:", error);
     el.cameraVideo.hidden = true;
     el.captureInvoiceButton.hidden = true;
@@ -234,6 +281,7 @@ function imageToDataUrl(source, width, height) {
 }
 
 async function captureInvoice() {
+  if (isScanningInvoice || isSubmitting || formUnavailable) return;
   if (!el.cameraVideo.videoWidth || !el.cameraVideo.videoHeight) {
     setCameraMessage("Kamera belum siap. Coba lagi sesaat.", "error");
     return;
@@ -247,6 +295,7 @@ async function captureInvoice() {
 }
 
 function readInvoiceFile(file) {
+  if (isScanningInvoice || isSubmitting || formUnavailable) return;
   if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
     setCameraMessage("Pilih foto JPEG, PNG, atau WebP.", "error");
     return;
@@ -256,22 +305,11 @@ function readInvoiceFile(file) {
     return;
   }
 
-  const image = new Image();
-  const objectUrl = URL.createObjectURL(file);
-  image.onload = async () => {
-    URL.revokeObjectURL(objectUrl);
-    const dataUrl = imageToDataUrl(image, image.naturalWidth, image.naturalHeight);
-    await scanInvoice(dataUrl);
-  };
-  image.onerror = () => {
-    URL.revokeObjectURL(objectUrl);
-    setCameraMessage("Foto tidak dapat dibaca.", "error");
-  };
-  image.src = objectUrl;
+  return scanInvoice(file);
 }
 
-function applyInvoiceExpense(expense) {
-  cancelEdit();
+function applyInvoiceExpense(expense, savedPath = null) {
+  cancelEdit(true);
   document.querySelector('input[name="type"][value="expense"]').checked = true;
   syncCategoryOptions();
   el.amount.value = expense.amount;
@@ -280,26 +318,47 @@ function applyInvoiceExpense(expense) {
     : "Lainnya";
   el.transactionDate.value = expense.transaction_date;
   el.description.value = String(expense.description || "").slice(0, 120);
+  receiptPath = savedPath;
+  syncReceiptSelection();
   [el.amount, el.category, el.transactionDate].forEach((input) =>
     input.removeAttribute("aria-invalid")
   );
-  setFormMessage("Struk dibaca oleh AI. Periksa nominal dan tanggal lalu simpan transaksi.", "success");
+  setFormMessage("Transaksi baru dari struk. Periksa nominal dan tanggal lalu simpan transaksi.", "success");
   el.amount.focus();
 }
 
-async function scanInvoice(dataUrl) {
-  if (isScanningInvoice) return;
+async function scanInvoice(source) {
+  if (isScanningInvoice || isSubmitting || formUnavailable || !currentUserId || !supabaseClient || el.submitButton.disabled) return;
   isScanningInvoice = true;
+  ++cameraRequestVersion;
+  const unlock = lockTransactionForm();
   stopCamera();
+  el.cameraStage.hidden = false;
   el.cameraVideo.hidden = true;
-  el.cameraPreview.src = dataUrl;
-  el.cameraPreview.hidden = false;
   el.captureInvoiceButton.hidden = true;
   el.retryCameraButton.hidden = true;
-  el.invoiceFileInput.disabled = true;
-  setCameraMessage("Menyimpan foto dan membaca struk dengan AI...", null);
+  setCameraMessage(editingId
+    ? "Membaca struk... Jika berhasil, edit dibatalkan untuk menyiapkan transaksi BARU."
+    : "Menyimpan foto dan membaca struk dengan AI...", null);
 
   try {
+    const dataUrl = typeof source === "string" ? source : await new Promise((resolve, reject) => {
+      const image = new Image();
+      const objectUrl = URL.createObjectURL(source);
+      image.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        try {
+          resolve(imageToDataUrl(image, image.naturalWidth, image.naturalHeight));
+        } catch (error) { reject(error); }
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Foto tidak dapat dibaca."));
+      };
+      image.src = objectUrl;
+    });
+    el.cameraPreview.src = dataUrl;
+    el.cameraPreview.hidden = false;
     const response = await fetch("/api/invoice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -307,26 +366,125 @@ async function scanInvoice(dataUrl) {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const suffix = result.saved_path ? " Foto tetap berhasil disimpan." : "";
+      const suffix = result.saved_path
+        ? " Foto tersimpan, tetapi tidak dilampirkan. Form dan lampiran sebelumnya tidak diubah."
+        : "";
       const message = String(result.error || "Struk gagal diproses.").replace(/invoice/gi, "struk");
       throw new Error(message + suffix);
     }
-    applyInvoiceExpense(result.expense);
-    setCameraMessage("Foto tersimpan dan data struk dimasukkan ke form.", "success");
+    if (!result.expense || !Number.isFinite(result.expense.amount) || result.expense.amount <= 0 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(result.expense.transaction_date) ||
+        typeof result.saved_path !== "string" || !result.saved_path.trim()) {
+      throw new Error("Hasil struk tidak lengkap. Form dan lampiran sebelumnya tidak diubah.");
+    }
+    applyInvoiceExpense(result.expense, result.saved_path);
+    setCameraMessage("Foto terlampir pada transaksi BARU. Periksa form lalu simpan.", "success");
   } catch (error) {
     console.error("Gagal memindai invoice:", error);
     setCameraMessage(error.message || "Struk gagal diproses.", "error");
   } finally {
     isScanningInvoice = false;
-    el.invoiceFileInput.disabled = false;
+    unlock();
     el.retryCameraButton.hidden = false;
   }
 }
 
 function closeInvoiceCamera() {
+  if (isScanningInvoice) return;
+  ++cameraRequestVersion;
   stopCamera();
   el.cameraStage.hidden = true;
+  el.cameraPreview.removeAttribute("src");
   setCameraMessage("", null);
+}
+
+/* URL privat hanya ada di dialog terbuka; respons lama dibuang saat ditutup/diganti. */
+function clearReceiptView() {
+  ++receiptViewVersion;
+  if (receiptViewController) receiptViewController.abort();
+  receiptViewController = null;
+  receiptTransactionId = null;
+  el.receiptPassword.value = "";
+  el.receiptPassword.disabled = false;
+  el.receiptUsername.value = "";
+  el.receiptViewButton.disabled = false;
+  el.receiptViewStatus.textContent = "";
+  el.receiptLink.removeAttribute("href");
+  el.receiptLink.hidden = true;
+}
+
+function closeReceiptDialog() {
+  clearReceiptView();
+  if (el.receiptDialog.open) el.receiptDialog.close();
+}
+
+function openReceiptDialog(id) {
+  if (!allRows.some((row) => row.id === id && row.receipt_path)) return;
+  if (typeof el.receiptDialog.showModal !== "function") {
+    setFormMessage("Browser ini belum mendukung dialog struk. Gunakan browser terbaru.", "error");
+    return;
+  }
+  clearReceiptView();
+  receiptTransactionId = id;
+  el.receiptUsername.value = currentUsername;
+  if (!el.receiptDialog.open) el.receiptDialog.showModal();
+  el.receiptPassword.focus();
+}
+
+async function submitReceiptView(event) {
+  event.preventDefault();
+  if (!receiptTransactionId || receiptViewController || !el.receiptDialog.open) return;
+  if (!el.receiptPassword.value) {
+    el.receiptViewStatus.textContent = "Masukkan kata sandi akun untuk melihat struk privat.";
+    el.receiptPassword.focus();
+    return;
+  }
+  const body = JSON.stringify({
+    action: "view_receipt",
+    transaction_id: receiptTransactionId,
+    username: currentUsername,
+    password: el.receiptPassword.value,
+  });
+  el.receiptPassword.value = "";
+  const version = ++receiptViewVersion;
+  receiptViewController = new AbortController();
+  el.receiptPassword.disabled = true;
+  el.receiptViewButton.disabled = true;
+  el.receiptLink.hidden = true;
+  el.receiptLink.removeAttribute("href");
+  el.receiptViewStatus.textContent = "Memverifikasi akun dan menyiapkan tautan privat...";
+  try {
+    const response = await fetch("/api/invoice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      signal: receiptViewController.signal,
+      body,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (version !== receiptViewVersion || !el.receiptDialog.open) return;
+    if (!response.ok) throw new Error(result.error || "Struk tidak dapat dibuka.");
+    const url = new URL(result.signed_url);
+    if (typeof result.signed_url !== "string" || url.protocol !== "https:" ||
+        url.origin !== new URL(SUPABASE_URL).origin || url.username || url.password) {
+      throw new Error("Tautan struk tidak valid.");
+    }
+    el.receiptLink.setAttribute("href", url.href);
+    el.receiptLink.hidden = false;
+    el.receiptViewStatus.textContent = "Struk siap dibuka. Tautan privat berlaku 60 detik; verifikasi ulang jika kedaluwarsa.";
+  } catch (error) {
+    if (version === receiptViewVersion && el.receiptDialog.open) {
+      el.receiptViewStatus.textContent = error instanceof TypeError
+        ? "Tautan struk tidak valid atau koneksi gagal. Coba lagi."
+        : error.message || "Struk tidak dapat dibuka.";
+    }
+  } finally {
+    if (version === receiptViewVersion) {
+      receiptViewController = null;
+      el.receiptPassword.disabled = false;
+      el.receiptViewButton.disabled = false;
+    }
+  }
 }
 
 /* =========================================================
@@ -658,7 +816,7 @@ async function fetchTransactions() {
 
   const { data, error } = await supabaseClient
     .from(TABLE_NAME)
-    .select("id, type, amount, category, description, transaction_date, created_at")
+    .select("id, type, amount, category, description, transaction_date, created_at, receipt_path")
     .eq("user_id", currentUserId)
     .order("transaction_date", { ascending: false })
     .order("created_at", { ascending: false });
@@ -813,8 +971,10 @@ function renderPage() {
       ? escapeHtml(t.description)
       : '<span class="desc-empty">Tidak ada keterangan</span>';
 
-    return `<tr data-id="${t.id}">
-      <td class="cell-date">${formatDateString(t.transaction_date)}</td>
+    const id = escapeHtml(t.id);
+    const date = escapeHtml(formatDateString(t.transaction_date));
+    return `<tr data-id="${id}">
+      <td class="cell-date">${date}</td>
       <td class="cell-desc">${description}</td>
       <td class="cell-cat"><span class="tag">${escapeHtml(t.category || "Lainnya")}</span></td>
       <td class="cell-type">
@@ -827,13 +987,14 @@ function renderPage() {
         amountsHidden ? AMOUNT_MASK : formatAmount(t.amount, type)
       }</td>
       <td class="cell-action">
+        ${t.receipt_path ? `<button type="button" class="btn-receipt" data-receipt="${id}">Lihat Struk</button>` : ""}
         <button
           type="button"
           class="btn-edit"
-          data-edit="${t.id}"
+          data-edit="${id}"
           title="Edit transaksi"
-          aria-label="Edit transaksi tanggal ${formatDateString(t.transaction_date)}"
-          ${editingId ? "disabled" : ""}
+          aria-label="Edit transaksi tanggal ${date}"
+          ${editingId || isScanningInvoice || isSubmitting ? "disabled" : ""}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 20h9"/>
@@ -843,10 +1004,10 @@ function renderPage() {
         <button
           type="button"
           class="btn-delete"
-          data-delete="${t.id}"
+          data-delete="${id}"
           title="Hapus transaksi"
-          aria-label="Hapus transaksi tanggal ${formatDateString(t.transaction_date)}"
-          ${deletingIds.has(t.id) ? "disabled" : ""}
+          aria-label="Hapus transaksi tanggal ${date}"
+          ${deletingIds.has(t.id) || isScanningInvoice || isSubmitting ? "disabled" : ""}
         >
           <svg xmlns="http://www.w3.org/2001/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5"/>
@@ -928,7 +1089,7 @@ function renderPagination() {
 async function addTransaction(event) {
   event.preventDefault();
 
-  if (isSubmitting) return;
+  if (isSubmitting || isScanningInvoice || formUnavailable || !currentUserId || !supabaseClient || el.submitButton.disabled) return;
 
   const type = document.querySelector('input[name="type"]:checked').value;
   const amountRaw = el.amount.value.trim();
@@ -964,8 +1125,9 @@ async function addTransaction(event) {
   }
 
   /* Nonaktifkan form selama proses simpan */
+  closeInvoiceCamera();
   isSubmitting = true;
-  el.submitButton.disabled = true;
+  const unlock = lockTransactionForm();
   el.submitButton.classList.add("is-busy");
   setFormMessage(editingId ? "Memperbarui transaksi..." : "Menyimpan transaksi...", null);
 
@@ -976,6 +1138,7 @@ async function addTransaction(event) {
     category,
     description: description || null,
     transaction_date: transactionDate,
+    receipt_path: receiptPath,
   };
 
   try {
@@ -1001,12 +1164,12 @@ async function addTransaction(event) {
 
     if (error) throw error;
 
+    const wasEditing = Boolean(editingId);
+    resetForm(true);
     setFormMessage(
-      editingId ? "Transaksi berhasil diperbarui." : "Transaksi berhasil disimpan.",
+      wasEditing ? "Transaksi berhasil diperbarui." : "Transaksi berhasil disimpan.",
       "success"
     );
-    cancelEdit();
-    resetForm();
 
     /* Transaksi terbaru tampil di halaman pertama */
     currentPage = 1;
@@ -1021,7 +1184,7 @@ async function addTransaction(event) {
     setFormMessage(message, "error");
   } finally {
     isSubmitting = false;
-    el.submitButton.disabled = false;
+    unlock();
     el.submitButton.classList.remove("is-busy");
   }
 }
@@ -1030,12 +1193,15 @@ async function addTransaction(event) {
    EDIT - muat transaksi ke form
    ========================================================= */
 function startEdit(id) {
-  if (!id || editingId) return;
+  if (!id || editingId || isScanningInvoice || isSubmitting || formUnavailable) return;
 
   const transaction = allRows.find((t) => t.id === id);
   if (!transaction) return;
 
+  closeInvoiceCamera();
   editingId = id;
+  receiptPath = transaction.receipt_path || null;
+  syncReceiptSelection();
 
   /* Isi form dengan data transaksi yang dipilih */
   const type = transaction.type === "income" ? "income" : "expense";
@@ -1049,7 +1215,7 @@ function startEdit(id) {
 
   syncFormMode();
 
-  setFormMessage("Mode edit — ubah data lalu simpan perubahan.", null);
+  setFormMessage("Mode edit: ubah data lalu simpan. Scan berhasil akan membatalkan edit dan menyiapkan transaksi baru.", null);
 
   /* Scroll ke form agar terlihat di layar kecil */
   el.form.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -1057,9 +1223,11 @@ function startEdit(id) {
 }
 
 /* Batalkan mode edit, kembali ke mode tambah */
-function cancelEdit() {
-  if (!editingId) return;
+function cancelEdit(internal = false) {
+  if (!internal && (isScanningInvoice || isSubmitting)) return;
   editingId = null;
+  receiptPath = null;
+  syncReceiptSelection();
   syncFormMode();
   setFormMessage("", null);
 }
@@ -1081,7 +1249,7 @@ function syncFormMode() {
    DELETE - hapus transaksi
    ========================================================= */
 async function deleteTransaction(id) {
-  if (!id || deletingIds.has(id)) return;
+  if (!id || deletingIds.has(id) || isScanningInvoice || isSubmitting) return;
 
   const row = el.tableBody.querySelector(`tr[data-id="${id}"]`);
   if (row) row.classList.add("deleting");
@@ -1113,23 +1281,29 @@ async function deleteTransaction(id) {
 /* =========================================================
    Reset form
    ========================================================= */
-function resetForm() {
-  el.form.reset();
+function resetForm(internal = false) {
+  if (!internal && (isScanningInvoice || isSubmitting)) return;
+  closeInvoiceCamera();
+  el.amount.value = "";
+  el.description.value = "";
+  el.invoiceFileInput.value = "";
   el.transactionDate.value = todayISO();
   document.querySelector('input[name="type"][value="expense"]').checked = true;
   syncCategoryOptions();
+  el.category.value = "";
   el.amount.removeAttribute("aria-invalid");
   el.category.removeAttribute("aria-invalid");
   el.transactionDate.removeAttribute("aria-invalid");
 
   /* Tombol reset juga membatalkan mode edit */
-  cancelEdit();
+  cancelEdit(true);
 }
 
 /* =========================================================
    Error fatal (konfigurasi / koneksi)
    ========================================================= */
 function showFatalError(title, sub) {
+  formUnavailable = true;
   el.tableCount.textContent = "0 catatan";
   showTableState(title, sub, true);
   el.submitButton.disabled = true;
@@ -1147,6 +1321,15 @@ function showFatalError(title, sub) {
    ========================================================= */
 function bindEvents() {
   el.form.addEventListener("submit", addTransaction);
+  el.receiptViewForm.addEventListener("submit", submitReceiptView);
+  el.receiptCancelButton.addEventListener("click", closeReceiptDialog);
+  el.receiptDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeReceiptDialog();
+  });
+  el.receiptDialog.addEventListener("close", () => {
+    if (!el.receiptDialog.open) clearReceiptView();
+  });
 
   if (el.openCameraButton) el.openCameraButton.addEventListener("click", openInvoiceCamera);
   if (el.captureInvoiceButton) el.captureInvoiceButton.addEventListener("click", captureInvoice);
@@ -1164,26 +1347,19 @@ function bindEvents() {
     input.addEventListener("change", syncCategoryOptions);
   });
 
-  el.resetButton.addEventListener("click", () => {
-    /* Tombol reset memicu reset native form; batalkan mode edit di sini */
-    cancelEdit();
-    setFormMessage("", null);
-  });
-
-  /* Setelah reset native selesai, kembalikan nilai default form */
-  el.form.addEventListener("reset", () => {
-    setTimeout(() => {
-      el.transactionDate.value = todayISO();
-      document.querySelector('input[name="type"][value="expense"]').checked = true;
-      syncCategoryOptions();
-      el.amount.removeAttribute("aria-invalid");
-      el.category.removeAttribute("aria-invalid");
-      el.transactionDate.removeAttribute("aria-invalid");
-    }, 0);
+  /* Reset sinkron: tidak ada callback native tertunda yang menimpa hasil scan. */
+  el.form.addEventListener("reset", (event) => {
+    event.preventDefault();
+    resetForm();
   });
 
   /* Event delegation untuk tombol hapus */
   el.tableBody.addEventListener("click", (event) => {
+    const receiptButton = event.target.closest("button[data-receipt]");
+    if (receiptButton && !receiptButton.disabled) {
+      openReceiptDialog(receiptButton.dataset.receipt);
+      return;
+    }
     const deleteButton = event.target.closest("button[data-delete]");
     if (deleteButton && !deleteButton.disabled) {
       deleteTransaction(deleteButton.dataset.delete);
@@ -1335,6 +1511,7 @@ document.addEventListener("DOMContentLoaded", () => {
     el.transactionDate.value = todayISO();
     el.periodLabel.textContent = currentMonthLabel();
     syncCategoryOptions();
+    syncReceiptSelection();
     bindEvents();
 
     /* Preferensi sensor nominal dari sesi sebelumnya */
@@ -1361,6 +1538,8 @@ document.addEventListener("DOMContentLoaded", () => {
 function displayRuntimeError(message) {
   console.error("Runtime:", message);
   try {
+    formUnavailable = true;
+    el.submitButton.disabled = true;
     el.formMessage.textContent = message;
     el.formMessage.classList.remove("success");
     el.formMessage.classList.add("error");

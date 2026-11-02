@@ -21,7 +21,10 @@ JavaScript) dengan backend **Supabase** (PostgreSQL + Supabase JS Client).
   otomatis. Mendukung struk retail, makanan, BBM, parkir/tol/transportasi,
   tagihan/bukti pembayaran, e-commerce/pembayaran digital, invoice/faktur, dan
   kuitansi tulisan tangan. Tanggal transaksi dibaca dan dinormalisasi; pengguna
-  tetap harus memeriksa nominal dan tanggal sebelum menyimpan.
+  tetap harus memeriksa nominal dan tanggal sebelum menyimpan. Foto hasil pindai
+  dilampirkan ke transaksi saat form disimpan melalui `receipt_path`.
+- **Lihat Struk** pada transaksi yang memiliki lampiran: konfirmasi password
+  login untuk membuka foto privat lewat tautan preview yang berlaku 60 detik.
 - Semua data tersimpan di database Supabase (CRUD: Create, Read, Update, Delete).
 - Login multi-user dengan **username + password** (tanpa email).
 - Setiap user hanya melihat transaksinya sendiri (filter per `user_id`).
@@ -104,8 +107,11 @@ username + password yang dibuat di langkah 3, lalu Anda dialihkan ke
 
 ## Deploy Vercel + AI Camera
 
-1. Jalankan ulang `sql/schema.sql` di Supabase SQL Editor. Ini membuat bucket
-   privat `invoice-images` selain tabel aplikasi.
+1. Sebelum deploy, jalankan ulang seluruh `sql/schema.sql` terbaru di Supabase
+   SQL Editor, termasuk untuk proyek yang sudah ada. Skrip idempoten ini
+   menambahkan kolom nullable `transactions.receipt_path` tanpa mengubah data
+   lama (nilainya tetap `null`) dan memastikan bucket `invoice-images` tetap
+   privat.
 2. Di OpenRouter, buat API key dari <https://openrouter.ai/settings/keys>.
 3. Di Vercel Project > **Settings > Environment Variables**, tambahkan:
 
@@ -119,21 +125,42 @@ username + password yang dibuat di langkah 3, lalu Anda dialihkan ke
    lalu redeploy commit terbaru.
 5. Buka situs melalui HTTPS, izinkan kamera, lalu tekan **Pindai Struk dengan
    AI**. Hasil AI hanya mengisi form; periksa nominal dan tanggal sebelum
-   menekan **Simpan Transaksi**.
+   menekan **Simpan Transaksi**. Foto hasil pindai akan dilampirkan ke transaksi;
+   gunakan **Lihat Struk** di riwayat dan konfirmasi password untuk melihatnya.
 
 `SUPABASE_SERVICE_ROLE_KEY` hanya boleh berada di Vercel Environment Variables.
-Jangan menaruhnya di `auth.js` atau commit ke repository. Foto tersimpan di
-bucket privat dengan path per user. Model yang diminta,
+Jangan menaruhnya di `auth.js` atau commit ke repository. Fitur **Lihat Struk**
+tidak memerlukan secret Vercel tambahan selain tiga variabel di atas. Foto
+tersimpan di bucket privat dengan path per user. Model yang diminta,
 `nvidia/nemotron-3-ultra-550b-a55b:free`, hanya menerima teks, sehingga function
 memakai `nvidia/nemotron-3.5-super-vl:free` untuk membaca gambar lalu memakai
 Nemotron 3 Ultra untuk membentuk data pengeluaran. Dua request free-tier dipakai
 per struk. Endpoint gratis dapat mencatat input, jadi jangan unggah struk
 yang memuat informasi pribadi atau rahasia.
 
-Login aplikasi saat ini berbasis `localStorage`, bukan token Supabase Auth, jadi
-endpoint AI publik belum dapat memverifikasi identitas user secara kuat. Untuk
-penggunaan publik berisiko tinggi, lindungi `/api/invoice` dengan Vercel Firewall
-atau migrasikan login ke Supabase Auth dan validasi JWT di function.
+`transactions.receipt_path` menyimpan `saved_path` dari scanner, misalnya
+`uuid/timestamp-random.jpg`, bukan URL. **Lihat Struk** memakai endpoint yang
+sama, `/api/invoice`, dengan action `view_receipt`. Server memverifikasi
+username dan password melalui fungsi `login_user` yang sudah ada, mencari
+transaksi milik user terverifikasi, lalu memastikan prefix path foto cocok
+dengan UUID user tersebut sebelum mengembalikan signed URL yang berlaku
+**60 detik**. Konfirmasi password diperlukan karena session login saat ini
+hanya menyimpan id + username di `localStorage`, bukan token Supabase Auth.
+Tautan preview privat berumur pendek ini dapat dibuka oleh siapa pun yang
+memegang tautannya selama belum kedaluwarsa; jangan membagikannya.
+
+Foto yang sudah ada di Storage tidak otomatis dicocokkan dengan transaksi
+lama. Menghapus transaksi tidak menghapus fotonya dari Storage, dan foto dari
+pindaian yang tidak disimpan sebagai transaksi tetap tersimpan. Belum ada
+pembersihan lifecycle otomatis untuk foto-foto tersebut.
+
+Verifikasi password ini hanya berlaku untuk action `view_receipt`; endpoint
+pindai AI publik masih belum dapat memverifikasi identitas user secara kuat.
+Fitur lampiran tidak memperbaiki keamanan CRUD, session, atau upload secara
+menyeluruh dan tidak mengubah RLS, login, atau privilege yang ada. Bucket
+tetap privat tanpa policy Storage untuk peran `anon`. Untuk penggunaan publik
+berisiko tinggi, lindungi `/api/invoice` dengan Vercel Firewall atau migrasikan
+login ke Supabase Auth dan validasi JWT di function.
 
 ## Troubleshooting
 
@@ -208,13 +235,13 @@ buka DevTools > **Network** > centang **Disable cache**.
 ├── index.html          # Struktur UI + CDN Supabase (memuat auth.js + app.js)
 ├── login.html          # Halaman login username + password (memuat auth.js)
 ├── style.css           # Desain utilitarian (CSS Variables)
-├── app.js              # Logika: fetch, insert, delete (filter per user_id)
+├── app.js              # CRUD per user_id, lampiran receipt_path + Lihat Struk
 ├── auth.js             # Config Supabase, session localStorage, login/logout
-├── api/invoice.py      # Vercel Python Function: simpan + baca invoice
+├── api/invoice.py      # Simpan + baca struk, view_receipt (signed URL privat)
 ├── vercel.json         # Durasi maksimum function AI
 ├── test_invoice.py     # Unit test validasi/parsing endpoint invoice
 ├── sql/
-│   ├── schema.sql      # Tabel users + transactions, fungsi, RLS
+│   ├── schema.sql      # Tabel + migrasi receipt_path, fungsi, RLS, bucket privat
 │   └── diagnose.sql    # Cek status RLS & kebijakan
 └── README.md
 ```
@@ -238,9 +265,15 @@ create table if not exists public.transactions (
   amount           numeric not null check (amount >= 0),
   category         text not null,
   description      text,
+  receipt_path     text,
   transaction_date date not null,
   created_at       timestamptz not null default now()
 );
+
+-- Migrasi idempoten untuk proyek lama; null tanpa backfill.
+-- receipt_path berisi saved_path scanner di bucket privat invoice-images.
+alter table public.transactions
+  add column if not exists receipt_path text;
 
 -- Indeks (pengurutan riwayat + filter per user)
 create index if not exists idx_transactions_user_id

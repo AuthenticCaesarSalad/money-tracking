@@ -9,8 +9,8 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.parse import parse_qs, quote, urlencode, urlsplit, urlunsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 PARSER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
@@ -65,6 +65,165 @@ class ApiError(Exception):
     def __init__(self, message, status=400):
         super().__init__(message)
         self.status = status
+
+
+class NoReceiptRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+# Keep server credentials and passwords on the configured origin only.
+receipt_urlopen = build_opener(NoReceiptRedirect).open
+
+
+def receipt_request_json(url, service_key, message, payload=None):
+    request = Request(
+        url,
+        data=None if payload is None else json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {service_key}",
+            "apikey": service_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="GET" if payload is None else "POST",
+    )
+    try:
+        with receipt_urlopen(request, timeout=25) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, OSError, UnicodeDecodeError, ValueError) as error:
+        if isinstance(error, HTTPError):
+            error.close()
+        raise ApiError(message, 502) from None
+
+
+def receipt_uuid(value):
+    if not isinstance(value, str) or len(value) != 36:
+        raise ValueError("invalid UUID")
+    canonical = str(uuid.UUID(value))
+    if value.lower() != canonical:
+        raise ValueError("invalid UUID")
+    return canonical
+
+
+def normalize_signed_url(value, supabase_url, object_path):
+    message = "Tautan struk tidak dapat dibuat."
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 8192
+        or any(ord(char) <= 32 for char in value)
+        or "\\" in value
+    ):
+        raise ApiError(message, 502)
+    try:
+        parts = urlsplit(value)
+        origin = urlsplit(supabase_url)
+        expected_path = f"/storage/v1/object/sign/{STORAGE_BUCKET}/{object_path}"
+        if not parts.scheme and not parts.netloc:
+            if parts.path not in (expected_path, expected_path.removeprefix("/storage/v1")):
+                raise ValueError("unexpected signed path")
+        elif parts.scheme != "https" or parts.netloc != origin.netloc or parts.path != expected_path:
+            raise ValueError("unexpected signed origin or path")
+        query = parse_qs(parts.query, strict_parsing=True)
+        if parts.fragment or set(query) != {"token"} or len(query["token"]) != 1:
+            raise ValueError("invalid signing token")
+        return urlunsplit(("https", origin.netloc, expected_path, urlencode({"token": query["token"][0]}), ""))
+    except ValueError as error:
+        raise ApiError(message, 502) from error
+
+
+def view_receipt(payload):
+    if set(payload) - {"action", "transaction_id", "username", "password"}:
+        raise ApiError("Data permintaan struk tidak valid.")
+    try:
+        transaction_id = receipt_uuid(payload.get("transaction_id"))
+    except ValueError as error:
+        raise ApiError("ID transaksi tidak valid.") from error
+    username, password = payload.get("username"), payload.get("password")
+    if (
+        not isinstance(username, str)
+        or not 1 <= len(username) <= 256
+        or not username.strip()
+        or not isinstance(password, str)
+        or not 1 <= len(password) <= 1024
+    ):
+        raise ApiError("Nama pengguna dan kata sandi tidak valid.")
+
+    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    try:
+        origin = urlsplit(supabase_url)
+        if (
+            not service_key
+            or origin.scheme != "https"
+            or not origin.hostname
+            or origin.username is not None
+            or origin.password is not None
+            or origin.port == 0
+            or origin.path
+            or origin.query
+            or origin.fragment
+            or "\\" in supabase_url
+            or any(ord(char) <= 32 for char in supabase_url)
+        ):
+            raise ValueError("invalid Supabase configuration")
+    except ValueError as error:
+        raise ApiError("Penyimpanan struk belum dikonfigurasi dengan benar.", 503) from error
+
+    login_message = "Verifikasi pengguna tidak dapat diproses."
+    users = receipt_request_json(
+        f"{supabase_url}/rest/v1/rpc/login_user",
+        service_key,
+        login_message,
+        {"p_username": username, "p_password": password},
+    )
+    if users == []:
+        raise ApiError("Nama pengguna atau kata sandi salah.", 401)
+    if not isinstance(users, list) or len(users) != 1 or not isinstance(users[0], dict):
+        raise ApiError(login_message, 502)
+    try:
+        user_id = receipt_uuid(users[0].get("id"))
+    except ValueError as error:
+        raise ApiError(login_message, 502) from error
+
+    rows = receipt_request_json(
+        f"{supabase_url}/rest/v1/transactions?" + urlencode({
+            "select": "receipt_path", "id": f"eq.{transaction_id}",
+            "user_id": f"eq.{user_id}", "limit": "1",
+        }),
+        service_key,
+        "Data struk tidak dapat diambil.",
+    )
+    if not isinstance(rows, list) or len(rows) > 1 or (rows and not isinstance(rows[0], dict)):
+        raise ApiError("Data struk tidak dapat diambil.", 502)
+    object_path = rows[0].get("receipt_path") if rows else None
+    unavailable = "Struk tidak tersedia."
+    if not isinstance(object_path, str):
+        raise ApiError(unavailable, 404)
+    # RLS permits ownership rewrites, so the stored photo's UUID must also match.
+    match = re.fullmatch(
+        re.escape(user_id) + r"/([0-9]{8}T[0-9]{6}Z)-[0-9a-f]{32}\.(?:jpg|png|webp)",
+        object_path,
+    )
+    if not match:
+        raise ApiError(unavailable, 404)
+    try:
+        datetime.strptime(match[1], "%Y%m%dT%H%M%SZ")
+    except ValueError as error:
+        raise ApiError(unavailable, 404) from error
+
+    signing_message = "Tautan struk tidak dapat dibuat."
+    result = receipt_request_json(
+        f"{supabase_url}/storage/v1/object/sign/{STORAGE_BUCKET}/{object_path}",
+        service_key,
+        signing_message,
+        {"expiresIn": 60},
+    )
+    if not isinstance(result, dict) or "error" in result:
+        raise ApiError(signing_message, 502)
+    signed_url = normalize_signed_url(result.get("signedURL") or result.get("signedUrl"), supabase_url, object_path)
+    return {"signed_url": signed_url, "expires_in": 60}
 
 
 def decode_image(data_url):
@@ -391,7 +550,10 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         saved_path = None
         try:
-            length = int(self.headers.get("Content-Length", "0"))
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError as error:
+                raise ApiError("Data permintaan tidak valid.") from error
             if length <= 0 or length > MAX_BODY_BYTES:
                 raise ApiError("Ukuran permintaan foto terlalu besar.", 413)
             if "application/json" not in self.headers.get("Content-Type", ""):
@@ -401,6 +563,14 @@ class handler(BaseHTTPRequestHandler):
                 payload = json.loads(self.rfile.read(length).decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError) as error:
                 raise ApiError("Data permintaan tidak valid.") from error
+
+            if not isinstance(payload, dict):
+                raise ApiError("Data permintaan harus berupa objek JSON.")
+            if "action" in payload:
+                if payload["action"] != "view_receipt":
+                    raise ApiError("Aksi permintaan tidak valid.")
+                self.send_json(200, view_receipt(payload))
+                return
 
             user_id = validate_user_id(payload.get("user_id"))
             data_url = payload.get("image")
@@ -413,6 +583,6 @@ class handler(BaseHTTPRequestHandler):
             if saved_path:
                 response["saved_path"] = saved_path
             self.send_json(error.status, response)
-        except Exception as error:  # pragma: no cover - final server boundary
-            print(f"Unexpected receipt API error: {error}")
+        except Exception:  # noqa: BLE001 - final boundary must not expose exception details
+            print("Unexpected receipt API error")
             self.send_json(500, {"error": "Terjadi kesalahan internal saat memproses struk."})

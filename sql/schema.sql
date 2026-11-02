@@ -37,6 +37,7 @@ create table if not exists public.transactions (
   amount           numeric not null check (amount >= 0),
   category         text not null,
   description      text,
+  receipt_path     text,
   transaction_date date not null,
   created_at       timestamptz not null default now()
 );
@@ -45,6 +46,11 @@ create table if not exists public.transactions (
 -- pastikan kolom user_id tetap ditambahkan.
 alter table public.transactions
   add column if not exists user_id uuid references public.users(id) on delete set null;
+
+-- Path saved_path scanner di bucket privat invoice-images, bukan URL publik.
+-- Nullable tanpa backfill: transaksi lama tetap null dan data tetap utuh.
+alter table public.transactions
+  add column if not exists receipt_path text;
 
 -- ---------------------------------------------------------
 -- 3. Indeks

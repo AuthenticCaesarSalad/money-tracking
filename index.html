@@ -14,7 +14,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="style.css?v=12" />
+  <link rel="stylesheet" href="style.css?v=13" />
 </head>
 <body>
   <header class="site-header">
@@ -110,7 +110,8 @@
             </svg>
             Pindai Struk dengan AI
           </button>
-          <p class="camera-note">Foto disimpan privat dan dikirim ke model gratis OpenRouter yang dapat mencatat input. Jangan pindai data rahasia; periksa hasil sebelum menyimpan.</p>
+          <p class="camera-note">Foto disimpan privat dan dikirim ke model gratis OpenRouter yang dapat mencatat input. Jangan pindai data rahasia; periksa hasil sebelum menyimpan. Scan berhasil selalu menyiapkan transaksi baru dan membatalkan mode edit, bukan mengganti struk transaksi lama.</p>
+          <p class="camera-note" id="receiptSelection" role="status" aria-live="polite">Tidak ada struk terlampir.</p>
 
           <div class="camera-stage" id="cameraStage" hidden>
             <video id="cameraVideo" playsinline muted aria-label="Pratinjau kamera"></video>
@@ -326,6 +327,27 @@
     </section>
   </main>
 
+  <dialog class="receipt-dialog" id="receiptDialog" aria-labelledby="receiptDialogTitle" aria-describedby="receiptDialogNote">
+    <form id="receiptViewForm">
+      <h2 id="receiptDialogTitle">Lihat Struk Privat</h2>
+      <p id="receiptDialogNote">Konfirmasi kata sandi akun untuk membuka struk transaksi ini. Kata sandi tidak disimpan oleh aplikasi.</p>
+      <div class="field">
+        <label class="field-label" for="receiptUsername">Nama pengguna</label>
+        <input type="text" id="receiptUsername" name="username" autocomplete="username" readonly />
+      </div>
+      <div class="field">
+        <label class="field-label" for="receiptPassword">Kata sandi</label>
+        <input type="password" id="receiptPassword" name="password" autocomplete="current-password" maxlength="1024" required autofocus />
+      </div>
+      <p class="form-message" id="receiptViewStatus" role="status" aria-live="polite"></p>
+      <a class="btn-ghost receipt-link" id="receiptLink" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden>Buka Struk</a>
+      <div class="form-actions">
+        <button type="submit" class="btn-primary" id="receiptViewButton">Verifikasi dan Lihat</button>
+        <button type="button" class="btn-ghost" id="receiptCancelButton">Tutup / Batal</button>
+      </div>
+    </form>
+  </dialog>
+
   <footer class="site-footer">
     <p>Supabase Connected</p>
   </footer>
@@ -341,6 +363,6 @@
     }
   </script>
   <script src="auth.js?v=11" defer></script>
-  <script src="app.js?v=13" defer></script>
+  <script src="app.js?v=14" defer></script>
 </body>
 </html>
