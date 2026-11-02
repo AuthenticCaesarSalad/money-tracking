@@ -124,6 +124,16 @@ let isScanningInvoice = false;
 /* =========================================================
    Util
    ========================================================= */
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
+}
+
 function formatRupiah(value) {
   const number = Number(value) || 0;
   return rupiahFormatter.format(number);
@@ -330,7 +340,7 @@ function syncCategoryOptions() {
 
   el.category.innerHTML =
     '<option value="">Pilih kategori</option>' +
-    options.map((c) => `<option value="${c}">${c}</option>`).join("");
+    options.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
 
   if (options.includes(previous)) {
     el.category.value = previous;
@@ -615,7 +625,7 @@ function renderCategoryChart(rows) {
     return `<path d="M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}
       L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4} Z"
       fill="${categoryColor(i)}">
-      <title>${d.category}: ${formatRupiah(d.total)} (${(fraction * 100).toFixed(1)}%)</title>
+      <title>${escapeHtml(d.category)}: ${formatRupiah(d.total)} (${(fraction * 100).toFixed(1)}%)</title>
     </path>`;
   });
 
@@ -632,7 +642,7 @@ function renderCategoryChart(rows) {
         const fraction = d.total / total;
         return `<li>
           <span class="legend-swatch" style="background-color: ${categoryColor(i)}"></span>
-          <span class="legend-name">${d.category}</span>
+          <span class="legend-name">${escapeHtml(d.category)}</span>
           <span class="legend-value">${(fraction * 100).toFixed(0)}%</span>
         </li>`;
       })
@@ -743,7 +753,7 @@ function syncFilterCategoryOptions() {
 
   el.filterCategory.innerHTML =
     '<option value="all">Semua</option>' +
-    used.map((c) => `<option value="${c}">${c}</option>`).join("");
+    used.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
 
   if (used.includes(previous)) {
     el.filterCategory.value = previous;
@@ -800,13 +810,13 @@ function renderPage() {
     const type = t.type === "income" ? "income" : "expense";
     const typeLabel = type === "income" ? "Pemasukan" : "Pengeluaran";
     const description = t.description
-      ? String(t.description)
+      ? escapeHtml(t.description)
       : '<span class="desc-empty">Tidak ada keterangan</span>';
 
     return `<tr data-id="${t.id}">
       <td class="cell-date">${formatDateString(t.transaction_date)}</td>
       <td class="cell-desc">${description}</td>
-      <td class="cell-cat"><span class="tag">${t.category || "Lainnya"}</span></td>
+      <td class="cell-cat"><span class="tag">${escapeHtml(t.category || "Lainnya")}</span></td>
       <td class="cell-type">
         <span class="type-badge ${type}">
           ${type === "income" ? ICON_INCOME : ICON_EXPENSE}

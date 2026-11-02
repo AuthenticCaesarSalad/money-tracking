@@ -220,7 +220,8 @@ def normalize_receipt_date(value, today=None):
 
     iso_match = re.match(r"^(\d{4})-(\d{2})-(\d{2})(?:$|[Tt\s])", value)
     if iso_match:
-        parts = map(int, iso_match.groups())
+        parsed_iso = datetime.fromisoformat(value)
+        parts = (parsed_iso.year, parsed_iso.month, parsed_iso.day)
     else:
         numeric_match = re.fullmatch(r"(\d{1,2})([/.-])(\d{1,2})\2(\d{2}|\d{4})", value)
         if numeric_match:
